@@ -1,0 +1,37 @@
+.card {
+  min-height: 108px;
+}
+
+.accent {
+  border-color: var(--color-warning-border);
+  background:
+    radial-gradient(ellipse 80% 80% at 100% 0%, var(--color-warning-muted), transparent 55%),
+    var(--glass-bg);
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.label {
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-line);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.icon {
+  display: inline-flex;
+  color: var(--color-accent);
+}
+
+.value {
+  font-size: var(--text-h2);
+  line-height: var(--text-h2-line);
+  font-weight: var(--text-h2-weight);
+  color: var(--color-text-primary);
+}

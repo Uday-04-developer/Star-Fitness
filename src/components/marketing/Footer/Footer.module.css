@@ -1,0 +1,119 @@
+.footer {
+  border-top: 1px solid var(--color-border-subtle);
+  background: var(--color-bg-surface);
+  padding: var(--space-8) var(--space-5) var(--space-6);
+}
+
+.inner {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-6);
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto var(--space-7);
+}
+
+.logo {
+  display: inline-block;
+  margin-bottom: var(--space-3);
+  font-size: var(--text-h3);
+  line-height: var(--text-h3-line);
+  font-weight: 700;
+  color: var(--color-text-primary);
+  letter-spacing: -0.02em;
+}
+
+.logoAccent {
+  color: var(--color-accent);
+}
+
+.tagline {
+  max-width: 280px;
+  font-size: var(--text-body);
+  line-height: var(--text-body-line);
+  color: var(--color-text-secondary);
+}
+
+.contact,
+.links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.contactLabel {
+  margin-bottom: var(--space-1);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-line);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.contactText {
+  font-size: var(--text-body);
+  line-height: var(--text-body-line);
+  color: var(--color-text-secondary);
+}
+
+.contactLink,
+.footerLink {
+  font-size: var(--text-body);
+  line-height: var(--text-body-line);
+  color: var(--color-text-secondary);
+  transition: color 0.2s ease;
+}
+
+.contactLink:hover,
+.footerLink:hover {
+  color: var(--color-text-primary);
+}
+
+.staffLink {
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-line);
+  color: var(--color-text-muted);
+  transition: color 0.2s ease;
+}
+
+.staffLink:hover {
+  color: var(--color-text-secondary);
+}
+
+.contactLink:focus-visible,
+.footerLink:focus-visible,
+.staffLink:focus-visible,
+.logo:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 4px;
+  border-radius: var(--radius-sm);
+}
+
+.bottom {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.copyright {
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-line);
+  color: var(--color-text-muted);
+}
+
+@media (min-width: 640px) {
+  .inner {
+    grid-template-columns: 1.4fr 1fr 1fr;
+    gap: var(--space-5);
+  }
+}
+
+@media (min-width: 1024px) {
+  .footer {
+    padding: var(--space-8) var(--space-8) var(--space-6);
+  }
+}

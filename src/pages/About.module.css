@@ -1,0 +1,69 @@
+.page {
+  min-height: 100vh;
+  background: var(--color-bg-base);
+  overflow-x: hidden;
+}
+
+.header {
+  position: relative;
+  padding: var(--space-8) var(--space-5) var(--space-7);
+  overflow: hidden;
+}
+
+.mesh {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 55% at 80% 10%, var(--color-accent-muted), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 10% 90%, var(--glass-bg), transparent 50%),
+    var(--color-bg-base);
+  pointer-events: none;
+}
+
+.headerContent {
+  position: relative;
+  z-index: 1;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.eyebrow,
+.title,
+.lead {
+  opacity: 0;
+}
+
+.eyebrow {
+  margin-bottom: var(--space-3);
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-line);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+.title {
+  margin-bottom: var(--space-4);
+  font-size: var(--text-h1);
+  line-height: var(--text-h1-line);
+  font-weight: var(--text-h1-weight);
+  color: var(--color-text-primary);
+  letter-spacing: -0.02em;
+}
+
+.lead {
+  font-size: var(--text-body-lg);
+  line-height: var(--text-body-lg-line);
+  color: var(--color-text-secondary);
+}
+
+@media (min-width: 1024px) {
+  .header {
+    padding: var(--space-9) var(--space-8) var(--space-8);
+  }
+
+  .headerContent {
+    margin: 0;
+  }
+}

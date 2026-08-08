@@ -1,0 +1,93 @@
+.wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 820px;
+}
+
+.table th {
+  padding: var(--space-4);
+  text-align: left;
+  font-size: var(--text-sm);
+  line-height: var(--text-sm-line);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--glass-bg-subtle);
+}
+
+.skeletonRow td {
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.skeleton,
+.skeletonShort {
+  display: block;
+  height: 14px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--glass-bg),
+    var(--glass-bg-strong),
+    var(--glass-bg)
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.2s ease-in-out infinite;
+}
+
+.skeleton {
+  width: 80%;
+}
+
+.skeletonShort {
+  width: 48%;
+}
+
+.empty {
+  padding: var(--space-8) var(--space-5);
+  text-align: center;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--glass-bg);
+}
+
+.emptyTitle {
+  margin-bottom: var(--space-3);
+  font-size: var(--text-h3);
+  color: var(--color-text-primary);
+}
+
+.emptyCopy {
+  color: var(--color-text-secondary);
+  font-size: var(--text-body);
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton,
+  .skeletonShort {
+    animation: none;
+    background: var(--glass-bg-hover);
+  }
+}

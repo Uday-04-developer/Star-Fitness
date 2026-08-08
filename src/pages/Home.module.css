@@ -1,0 +1,45 @@
+.page {
+  min-height: 100vh;
+  background: var(--color-bg-base);
+  overflow-x: hidden;
+}
+
+.ctaSection {
+  padding: 0 var(--space-5) var(--space-9);
+  max-width: 1120px;
+  margin: 0 auto;
+  opacity: 0;
+}
+
+.ctaCard {
+  background:
+    radial-gradient(ellipse 70% 80% at 90% 20%, var(--color-accent-muted), transparent 55%),
+    var(--glass-bg);
+}
+
+.ctaContent {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  max-width: 520px;
+}
+
+.ctaTitle {
+  font-size: var(--text-h2);
+  line-height: var(--text-h2-line);
+  font-weight: var(--text-h2-weight);
+  color: var(--color-text-primary);
+}
+
+.ctaCopy {
+  font-size: var(--text-body-lg);
+  line-height: var(--text-body-lg-line);
+  color: var(--color-text-secondary);
+}
+
+@media (min-width: 1024px) {
+  .ctaSection {
+    padding: 0 var(--space-8) var(--space-9);
+  }
+}
