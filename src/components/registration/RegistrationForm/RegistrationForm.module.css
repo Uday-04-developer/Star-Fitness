@@ -13,6 +13,15 @@
   font-size: var(--text-body);
 }
 
+.banner:focus {
+  outline: none;
+}
+
+.banner:focus-visible {
+  outline: 2px solid var(--color-danger);
+  outline-offset: 2px;
+}
+
 .section {
   display: flex;
   flex-direction: column;

@@ -29,6 +29,7 @@ const initialState = {
   submitError: '',
   submitWarning: '',
   createdMember: null,
+  errorFocusToken: 0,
 };
 
 const reducer = (state, action) => {
@@ -51,6 +52,7 @@ const reducer = (state, action) => {
         ...state,
         errors: action.errors,
         status: 'idle',
+        errorFocusToken: state.errorFocusToken + 1,
       };
     case 'SET_SELFIE':
       return {
@@ -88,6 +90,7 @@ const reducer = (state, action) => {
         ...state,
         status: 'error',
         submitError: action.message,
+        errorFocusToken: state.errorFocusToken + 1,
       };
     case 'RESET':
       return { ...initialState };
@@ -274,6 +277,7 @@ export const useMemberForm = ({ onMemberCreated } = {}) => {
     submitError: state.submitError,
     submitWarning: state.submitWarning,
     createdMember: state.createdMember,
+    errorFocusToken: state.errorFocusToken,
     isSubmitting: state.status === 'submitting',
     setField,
     setPlanType,
