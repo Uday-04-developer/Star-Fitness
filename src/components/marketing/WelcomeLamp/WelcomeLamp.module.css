@@ -1,0 +1,345 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: #0a0a0b;
+  padding:
+    2rem
+    1.25rem
+    max(2.5rem, calc(env(safe-area-inset-bottom, 0px) + 1.75rem));
+}
+
+.scene {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 48rem;
+  min-height: 0;
+}
+
+/* —— Lamp —— */
+
+.lamp {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 6px;
+}
+
+.glowDown {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  width: min(40rem, 92vw);
+  height: min(28rem, 50vh);
+  background: radial-gradient(
+    ellipse 58% 100% at 50% 0%,
+    rgba(255, 248, 231, 0.55) 0%,
+    rgba(245, 230, 200, 0.32) 16%,
+    rgba(217, 178, 90, 0.2) 38%,
+    rgba(200, 155, 60, 0.08) 62%,
+    transparent 82%
+  );
+  filter: blur(12px);
+  pointer-events: none;
+}
+
+/* Larger glow radius around the beam */
+.glowRing {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  height: 9rem;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: radial-gradient(
+    ellipse 100% 100% at 50% 50%,
+    rgba(255, 255, 255, 0.6) 0%,
+    rgba(255, 248, 231, 0.42) 16%,
+    rgba(217, 178, 90, 0.32) 40%,
+    rgba(200, 155, 60, 0.12) 65%,
+    transparent 100%
+  );
+  filter: blur(18px);
+  pointer-events: none;
+}
+
+.glowHalo {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  height: 4rem;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: radial-gradient(
+    ellipse 100% 100% at 50% 50%,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(255, 244, 214, 0.55) 32%,
+    rgba(217, 178, 90, 0.28) 68%,
+    transparent 100%
+  );
+  filter: blur(10px);
+  pointer-events: none;
+}
+
+.beam {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  height: 5px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 232, 168, 0.55) 6%,
+    #ffe9a8 18%,
+    #fff4d4 40%,
+    #ffffff 50%,
+    #fff4d4 60%,
+    #ffe9a8 82%,
+    rgba(255, 232, 168, 0.55) 94%,
+    transparent 100%
+  );
+  box-shadow:
+    0 0 2px #ffffff,
+    0 0 10px #ffffff,
+    0 0 22px rgba(255, 248, 231, 0.95),
+    0 0 40px rgba(255, 233, 168, 0.85),
+    0 0 64px rgba(217, 178, 90, 0.7),
+    0 0 96px rgba(200, 155, 60, 0.45),
+    0 8px 28px rgba(255, 248, 231, 0.45),
+    0 18px 48px rgba(217, 178, 90, 0.4),
+    0 36px 72px rgba(200, 155, 60, 0.28);
+  pointer-events: none;
+}
+
+.beamCore {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  height: 2.5px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    #ffffff 12%,
+    #ffffff 50%,
+    #ffffff 88%,
+    transparent 100%
+  );
+  box-shadow:
+    0 0 8px #ffffff,
+    0 0 18px rgba(255, 255, 255, 0.95);
+  pointer-events: none;
+}
+
+.copy {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  margin-top: 2rem;
+  text-align: center;
+}
+
+.heading {
+  margin: 0;
+  font-family: 'Bebas Neue', var(--font-family);
+  font-size: clamp(4.75rem, 20vw, 8.75rem);
+  font-weight: 400;
+  line-height: 0.9;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.headingLit {
+  display: inline-block;
+  background: linear-gradient(
+    180deg,
+    #ffffff 0%,
+    #fff8e7 12%,
+    #f5e6c8 28%,
+    var(--color-accent-hover) 52%,
+    var(--color-accent) 78%,
+    #8a6a28 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 -8px 20px rgba(255, 248, 231, 0.4))
+    drop-shadow(0 0 28px rgba(200, 155, 60, 0.25));
+}
+
+.tagline {
+  max-width: 26rem;
+  margin: 3.15rem 0 0;
+  font-family: 'Cormorant Garamond', Georgia, serif;
+  font-size: clamp(2.05rem, 2.4vw, 1.35rem);
+  font-weight: 500;
+  font-style: italic;
+  line-height: 1.55;
+  letter-spacing: 0.04em;
+  color: #c4b89a;
+  text-wrap: balance;
+  text-shadow: 0 -8px 24px rgba(245, 230, 200, 0.2);
+}
+
+.footer {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: 100%;
+  max-width: 56rem;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.loopWrap {
+  width: min(100%, 48rem);
+  min-height: 5.5rem;
+  margin: 0.25rem auto 0.5rem;
+  overflow: visible;
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    #000 5%,
+    #000 95%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    #000 5%,
+    #000 95%,
+    transparent 100%
+  );
+}
+
+.enter {
+  position: relative;
+  z-index: 4;
+  flex-shrink: 0;
+  margin-top: 0.25rem;
+  padding: 1.85rem 2.25rem;
+  border: 1px solid var(--color-accent-border);
+  border-radius: 999px;
+  background: rgba(200, 155, 60, 0.06);
+  color: var(--color-accent-hover);
+  font-size: 1.5rem; 
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  margin-bottom: 2rem;
+  margin-top: 2rem;
+  transition:
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    color 0.25s ease;
+}
+
+.enter:hover {
+  background: var(--color-accent-muted);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 28px var(--color-accent-glow);
+  color: var(--color-text-primary);
+}
+
+.enter:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 4px;
+}
+
+/* Mobile: lamp + copy centered, loop + Enter at bottom */
+@media (max-width: 768px) {
+  .overlay {
+    justify-content: flex-start;
+    padding:
+      max(3.5rem, calc(env(safe-area-inset-top, 0px) + 2rem))
+      1.25rem
+      max(1.75rem, calc(env(safe-area-inset-bottom, 0px) + 1.25rem));
+  }
+
+  .scene {
+    flex: 1 1 auto;
+    justify-content: center;
+    padding-bottom: 1rem;
+  }
+
+  .copy {
+    margin-top: 3.5rem;
+  }
+
+  .heading {
+    letter-spacing: 0.04em;
+    font-size: clamp(4.25rem, 20vw, 8rem);
+  }
+
+  .glowRing {
+    height: 8.5rem;
+    filter: blur(16px);
+  }
+
+  .glowHalo {
+    height: 3.25rem;
+  }
+
+  .footer {
+    margin-top: auto;
+    gap: 0.5rem;
+  }
+
+  .loopWrap {
+    width: 100%;
+    min-height: 4.75rem;
+    margin: 0 auto 0.35rem;
+
+  }
+
+  .enter {
+    width: min(100%, 16rem);
+    margin-bottom: 0.5rem;
+    padding: 0.85rem 1.5rem;
+    font-size: var(--text-sm);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glowDown,
+  .glowRing,
+  .glowHalo,
+  .beam,
+  .beamCore {
+    transition: none;
+  }
+}

@@ -89,6 +89,12 @@
   margin-bottom: var(--space-4);
 }
 
+.navGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
 .monthTitle {
   flex: 1;
   text-align: center;

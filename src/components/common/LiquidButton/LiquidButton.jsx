@@ -5,6 +5,7 @@ import styles from './LiquidButton.module.css';
 
 const MotionButton = motion.button;
 const MotionLink = motion.create(Link);
+const MotionAnchor = motion.a;
 
 /**
  * Animate UI liquid fill — ported to CSS Modules + framer-motion (no Tailwind/TS).
@@ -23,6 +24,7 @@ const LiquidButton = ({
   isLoading = false,
   fullWidth = false,
   to,
+  href,
   className = '',
   delay = '0.3s',
   fillHeight = '3px',
@@ -34,6 +36,7 @@ const LiquidButton = ({
   const isDisabled = disabled || isLoading;
   const reduced = prefersReducedMotion();
   const content = children ?? label;
+  const iconSize = size === 'nav' || size === 'sm' ? 16 : 20;
 
   const classNames = [
     styles.button,
@@ -80,11 +83,11 @@ const LiquidButton = ({
   ) : (
     <>
       {Icon && iconPosition === 'left' ? (
-        <Icon size={size === 'nav' ? 16 : 20} strokeWidth={1.75} aria-hidden="true" />
+        <Icon size={iconSize} strokeWidth={1.75} aria-hidden="true" />
       ) : null}
       {content != null ? <span>{content}</span> : null}
       {Icon && iconPosition === 'right' ? (
-        <Icon size={size === 'nav' ? 16 : 20} strokeWidth={1.75} aria-hidden="true" />
+        <Icon size={iconSize} strokeWidth={1.75} aria-hidden="true" />
       ) : null}
     </>
   );
@@ -96,11 +99,29 @@ const LiquidButton = ({
         className={classNames}
         style={liquidStyle}
         aria-label={ariaLabel}
+        onClick={onClick}
         {...motionProps}
         {...rest}
       >
         {inner}
       </MotionLink>
+    );
+  }
+
+  if (href) {
+    return (
+      <MotionAnchor
+        href={href}
+        className={classNames}
+        style={liquidStyle}
+        aria-label={ariaLabel}
+        aria-disabled={isDisabled || undefined}
+        onClick={isDisabled ? (event) => event.preventDefault() : onClick}
+        {...motionProps}
+        {...rest}
+      >
+        {inner}
+      </MotionAnchor>
     );
   }
 

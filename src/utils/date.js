@@ -63,6 +63,27 @@ export const addDaysToIsoDate = (isoDate, days) => {
   });
 };
 
+/**
+ * Add calendar months to a date-only ISO string, clamping to the last valid
+ * day of the target month (e.g. Jan 31 + 1 month → Feb 28/29).
+ */
+export const addCalendarMonths = (isoDate, months) => {
+  const { year, month, day } = parseDateOnly(isoDate);
+  const monthIndex = month - 1 + Number(months);
+  const targetYear = year + Math.floor(monthIndex / 12);
+  const targetMonthIndex = ((monthIndex % 12) + 12) % 12;
+  const daysInTarget = new Date(
+    Date.UTC(targetYear, targetMonthIndex + 1, 0),
+  ).getUTCDate();
+  const clampedDay = Math.min(day, daysInTarget);
+
+  return partsToIso({
+    year: targetYear,
+    month: targetMonthIndex + 1,
+    day: clampedDay,
+  });
+};
+
 export const compareIsoDates = (a, b) => {
   const left = toUtcMidnight(parseDateOnly(a));
   const right = toUtcMidnight(parseDateOnly(b));
@@ -81,6 +102,12 @@ export const getNearTermDateRange = (
   const max = addDaysToIsoDate(min, Math.max(windowDays, 1) - 1);
   return { min, max };
 };
+
+/** Past floor through today (Asia/Kolkata) — for date of birth only. */
+export const getDobDateRange = (now = new Date()) => ({
+  min: '1920-01-01',
+  max: getTodayIsoDate(now),
+});
 
 export const formatMonthTitle = (year, month) =>
   monthTitleFormatter.format(new Date(Date.UTC(year, month - 1, 1)));
@@ -102,23 +129,37 @@ export const getCalendarCells = (year, month) => {
 };
 
 export const getPlanEndDate = (member) => {
-  const start = parseDateOnly(member.plan_start_date);
-  const endUtc = Date.UTC(
-    start.year,
-    start.month - 1,
-    start.day + Number(member.plan_duration_days),
-  );
-  const end = new Date(endUtc);
+  // Sole access/expiry source of truth (Phase 1).
+  if (member?.current_period_end) {
+    return String(member.current_period_end).slice(0, 10);
+  }
 
-  const year = end.getUTCFullYear();
-  const month = String(end.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(end.getUTCDate()).padStart(2, '0');
+  return '';
+};
 
-  return `${year}-${month}-${day}`;
+/**
+ * Next period end for a renew: active → stack on current end; expired → today + months.
+ * Does not mutate plan_start_date.
+ */
+export const computeRenewalPeriodEnd = (
+  member,
+  paidDurationMonths,
+  now = new Date(),
+) => {
+  const today = getTodayIsoDate(now);
+  const currentEnd = getPlanEndDate(member);
+  const base =
+    currentEnd && compareIsoDates(currentEnd, today) >= 0 ? currentEnd : today;
+  return addCalendarMonths(base, paidDurationMonths);
 };
 
 export const getDaysRemaining = (member, now = new Date()) => {
-  const end = parseDateOnly(getPlanEndDate(member));
+  const endIso = getPlanEndDate(member);
+  if (!endIso) {
+    return 0;
+  }
+
+  const end = parseDateOnly(endIso);
   const today = getTodayDateParts(now);
   const diffMs = toUtcMidnight(end) - toUtcMidnight(today);
   return Math.round(diffMs / (1000 * 60 * 60 * 24));
@@ -175,4 +216,12 @@ export const formatPlanLabel = (planType) => {
   };
 
   return labels[planType] || planType;
+};
+
+export const formatPaidDurationLabel = (months) => {
+  const value = Number(months);
+  if (!value) {
+    return '—';
+  }
+  return value === 1 ? '1 month' : `${value} months`;
 };

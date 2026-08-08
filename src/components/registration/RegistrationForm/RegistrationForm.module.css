@@ -81,6 +81,16 @@
   margin-top: var(--space-2);
 }
 
+.fieldError {
+  font-size: var(--text-sm);
+  color: var(--color-danger);
+}
+
+.fieldHint {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
 .submit {
   position: sticky;
   bottom: 0;

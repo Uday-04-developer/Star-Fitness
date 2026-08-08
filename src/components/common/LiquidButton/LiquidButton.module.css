@@ -104,6 +104,39 @@
   color: #0a0a0b;
 }
 
+.success {
+  --liquid-button-color: var(--color-success);
+  --liquid-button-background-color: var(--color-success-muted);
+  color: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.success:hover {
+  color: #0a0a0b;
+}
+
+.warning {
+  --liquid-button-color: var(--color-warning);
+  --liquid-button-background-color: var(--color-warning-muted);
+  color: var(--color-warning);
+  border-color: var(--color-warning-border);
+}
+
+.warning:hover {
+  color: #0a0a0b;
+}
+
+.danger {
+  --liquid-button-color: var(--color-danger);
+  --liquid-button-background-color: transparent;
+  color: var(--color-danger);
+  border-color: var(--color-danger-border);
+}
+
+.danger:hover {
+  color: var(--color-text-primary);
+}
+
 .spinner {
   width: 18px;
   height: 18px;
@@ -138,5 +171,20 @@
   .whatsapp:hover {
     background-color: var(--color-whatsapp) !important;
     color: #0a0a0b;
+  }
+
+  .success:hover {
+    background-color: var(--color-success) !important;
+    color: #0a0a0b;
+  }
+
+  .warning:hover {
+    background-color: var(--color-warning) !important;
+    color: #0a0a0b;
+  }
+
+  .danger:hover {
+    background-color: var(--color-danger) !important;
+    color: var(--color-text-primary);
   }
 }

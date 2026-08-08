@@ -5,6 +5,7 @@ import { CheckCircle2 } from 'lucide-react';
 import Button from '@/components/common/Button/Button';
 import {
   formatDisplayDate,
+  formatPaidDurationLabel,
   formatPlanLabel,
   getPlanEndDate,
 } from '@/utils/date';
@@ -84,6 +85,14 @@ const SuccessScreen = ({ member, warning = '' }) => {
         <div>
           <dt>Plan</dt>
           <dd>{formatPlanLabel(member.plan_type)}</dd>
+        </div>
+        <div>
+          <dt>Paid duration</dt>
+          <dd>{formatPaidDurationLabel(member.paid_duration_months)}</dd>
+        </div>
+        <div>
+          <dt>Joined</dt>
+          <dd>{formatDisplayDate(member.plan_start_date)}</dd>
         </div>
         <div>
           <dt>Valid until</dt>

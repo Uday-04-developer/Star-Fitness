@@ -22,7 +22,8 @@ import styles from './Dashboard.module.css';
 const Dashboard = () => {
   const navigate = useNavigate();
   const { signOut } = useAuth();
-  const { members, isLoading, error, refetch, updatePaymentStatus } = useMembers();
+  const { members, isLoading, error, refetch, updatePaymentStatus, renewMembership, removeMember } =
+    useMembers();
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -152,6 +153,8 @@ const Dashboard = () => {
           members={filteredMembers}
           isLoading={isLoading}
           onPaymentStatusChange={updatePaymentStatus}
+          onRenewMember={renewMembership}
+          onDeleteMember={removeMember}
         />
       </main>
     </div>

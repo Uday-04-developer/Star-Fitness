@@ -1,13 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
-import { RotateCcw } from 'lucide-react';
+import { ExternalLink, RotateCcw, Trash2 } from 'lucide-react';
 import Badge from '@/components/common/Badge/Badge';
+import Button from '@/components/common/Button/Button';
+import LiquidButton from '@/components/common/LiquidButton/LiquidButton';
+import Modal from '@/components/common/Modal/Modal';
+import CallButton from '@/components/dashboard/CallButton/CallButton';
 import WhatsAppButton from '@/components/dashboard/WhatsAppButton/WhatsAppButton';
-import { MOTION } from '@/lib/constants';
+import { MOTION, PAID_DURATION_OPTIONS } from '@/lib/constants';
+import { useSignedSelfieUrl } from '@/hooks/useSignedSelfieUrl';
 import {
   formatDaysRemainingLabel,
   formatDisplayDate,
+  formatPaidDurationLabel,
   formatPlanLabel,
+  computeRenewalPeriodEnd,
   getMembershipStatus,
   getPlanEndDate,
 } from '@/utils/date';
@@ -16,6 +23,12 @@ import { getReminderMessage } from '@/utils/whatsapp';
 import styles from './MemberFlipCard.module.css';
 
 const TILT_DIVISOR = 22;
+
+const CARD_GRADIENTS = [
+  'linear-gradient(to top right, #0a0a0b, #2f2f33)',
+  'linear-gradient(to right, #0d2818, #0a0a0b)',
+  'linear-gradient(to bottom, #3c4a1c, #0a0a0b)',
+];
 
 const getInitials = (name) =>
   String(name || '')
@@ -35,19 +48,44 @@ const MemberFlipCard = ({
   isFlipped = false,
   onFlip,
   onPaymentStatusChange,
+  onRenew,
+  onDelete,
+  gradientIndex = 0,
 }) => {
   const tiltRef = useRef(null);
   const cardRef = useRef(null);
+  const sceneRef = useRef(null);
+  const frontBodyRef = useRef(null);
   const backContentRef = useRef(null);
   const [isSavingPayment, setIsSavingPayment] = useState(false);
   const [paymentError, setPaymentError] = useState('');
+  const [renewMonths, setRenewMonths] = useState(
+    String(member.paid_duration_months || 1),
+  );
+  const [isRenewing, setIsRenewing] = useState(false);
+  const [renewError, setRenewError] = useState('');
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [isHovered, setIsHovered] = useState(false);
+  const selfieSrc = useSignedSelfieUrl(member.selfie_url);
   const status = getMembershipStatus(member);
   const endDate = getPlanEndDate(member);
   const daysLabel = formatDaysRemainingLabel(member);
-  const joinedDate = formatDisplayDate(
-    member.plan_start_date || member.created_at?.slice(0, 10),
-  );
+  const joinedDate = formatDisplayDate(member.plan_start_date);
+  const endsDate = formatDisplayDate(endDate);
   const isPaid = member.payment_status === 'paid';
+  const cardGradient = CARD_GRADIENTS[gradientIndex % 3];
+  const renewPreviewEnd = formatDisplayDate(
+    computeRenewalPeriodEnd(member, Number(renewMonths) || 1),
+  );
+  const planLabel = formatPlanLabel(member.plan_type);
+
+  const resetTilt = () => {
+    if (tiltRef.current) {
+      tiltRef.current.style.transform = 'rotateY(0deg) rotateX(0deg)';
+    }
+  };
 
   useEffect(() => {
     const card = cardRef.current;
@@ -81,6 +119,21 @@ const MemberFlipCard = ({
       );
     }
 
+    if (!isFlipped && frontBodyRef.current && !prefersReducedMotion()) {
+      gsap.fromTo(
+        frontBodyRef.current.children,
+        { opacity: 0, y: 8 },
+        {
+          opacity: 1,
+          y: 0,
+          duration: 0.36,
+          stagger: 0.05,
+          ease: MOTION.easeOut,
+          overwrite: 'auto',
+        },
+      );
+    }
+
     if (isFlipped && tiltRef.current) {
       tiltRef.current.style.transform = 'rotateY(0deg) rotateX(0deg)';
     }
@@ -90,10 +143,62 @@ const MemberFlipCard = ({
     };
   }, [isFlipped]);
 
-  const resetTilt = () => {
-    if (tiltRef.current) {
-      tiltRef.current.style.transform = 'rotateY(0deg) rotateX(0deg)';
+  // Clear sticky hover if the pointer left the card without a relatedTarget
+  // (native select) and later moves outside the card bounds.
+  useEffect(() => {
+    if (!isHovered) {
+      return undefined;
     }
+
+    const clearIfOutside = (clientX, clientY) => {
+      const el = sceneRef.current;
+      if (!el) {
+        return;
+      }
+      const rect = el.getBoundingClientRect();
+      const inside =
+        clientX >= rect.left &&
+        clientX <= rect.right &&
+        clientY >= rect.top &&
+        clientY <= rect.bottom;
+      if (!inside) {
+        setIsHovered(false);
+        resetTilt();
+      }
+    };
+
+    const onPointerMove = (event) => {
+      clearIfOutside(event.clientX, event.clientY);
+    };
+
+    const onBlur = () => {
+      setIsHovered(false);
+      resetTilt();
+    };
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('blur', onBlur);
+    };
+  }, [isHovered]);
+
+  const handleCardPointerEnter = () => {
+    setIsHovered(true);
+  };
+
+  const handleCardPointerLeave = (event) => {
+    const { relatedTarget, currentTarget } = event;
+    if (relatedTarget && currentTarget.contains(relatedTarget)) {
+      return;
+    }
+    // Native select popups can fire leave with null relatedTarget — keep hover.
+    if (!relatedTarget) {
+      return;
+    }
+    setIsHovered(false);
+    resetTilt();
   };
 
   const handleMouseMove = (event) => {
@@ -139,37 +244,173 @@ const MemberFlipCard = ({
     }
   };
 
+  const handleRenew = async (event) => {
+    event?.stopPropagation?.();
+    if (isRenewing || !onRenew) {
+      return;
+    }
+
+    setRenewError('');
+    setIsRenewing(true);
+
+    try {
+      await onRenew(member.id, Number(renewMonths));
+    } catch (error) {
+      console.error(error);
+      setRenewError(error?.message || "Couldn't renew membership. Try again.");
+    } finally {
+      setIsRenewing(false);
+    }
+  };
+
+  const handleCloseDelete = () => {
+    if (isDeleting) {
+      return;
+    }
+    setIsDeleteOpen(false);
+    setDeleteError('');
+  };
+
+  const handleConfirmDelete = async () => {
+    setIsDeleting(true);
+    setDeleteError('');
+
+    try {
+      await onDelete?.(member.id);
+      setIsDeleteOpen(false);
+    } catch (error) {
+      console.error(error);
+      setDeleteError(
+        error?.message || "Couldn't delete this member. Try again.",
+      );
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const faceStyle = { '--card-gradient': cardGradient };
+  const frontToneClass = [
+    styles.face,
+    styles.front,
+    styles[`tone_${status}`],
+    !isPaid ? styles.tone_unpaid : '',
+    isHovered ? styles.isHovered : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
-    <div className={styles.scene}>
+    <div
+      ref={sceneRef}
+      className={styles.scene}
+      onPointerEnter={handleCardPointerEnter}
+      onPointerLeave={handleCardPointerLeave}
+    >
       <div
         ref={tiltRef}
         className={styles.tilt}
         onMouseMove={handleMouseMove}
-        onMouseLeave={resetTilt}
       >
         <div ref={cardRef} className={styles.card}>
           <div
-            className={[styles.face, styles.front].join(' ')}
+            className={frontToneClass}
+            style={faceStyle}
             role="button"
             tabIndex={isFlipped ? -1 : 0}
             onClick={handleFrontActivate}
             onKeyDown={handleFrontKeyDown}
             aria-label={`${member.full_name}, ${daysLabel}. Flip for details.`}
           >
+            <div className={styles.hoverGlow} aria-hidden="true" />
             <div className={styles.photoLayer}>
-              {member.selfie_url ? (
-                <img className={styles.photo} src={member.selfie_url} alt="" />
+              {selfieSrc ? (
+                <img className={styles.photo} src={selfieSrc} alt="" />
               ) : (
                 <div className={styles.avatar} aria-hidden="true">
                   {getInitials(member.full_name)}
                 </div>
               )}
+
+              <div
+                className={styles.photoOverlay}
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => event.stopPropagation()}
+              >
+                <div className={styles.photoMeta}>
+                  <p className={styles.photoPlan}>{planLabel}</p>
+                  <p className={styles.photoEnds}>
+                    Ends {endsDate}
+                    {onRenew ? (
+                      <span className={styles.photoRenewPreview}>
+                        {' '}
+                        · After renew {renewPreviewEnd}
+                      </span>
+                    ) : null}
+                  </p>
+                </div>
+
+                {onRenew ? (
+                  <div className={styles.photoRenew}>
+                    <select
+                      className={styles.renewSelect}
+                      value={renewMonths}
+                      onChange={(event) => setRenewMonths(event.target.value)}
+                      aria-label="Paid duration for renew"
+                      disabled={isRenewing}
+                    >
+                      {PAID_DURATION_OPTIONS.map((months) => (
+                        <option key={months} value={String(months)}>
+                          {formatPaidDurationLabel(months)}
+                        </option>
+                      ))}
+                    </select>
+                    <LiquidButton
+                      type="button"
+                      label="Renew"
+                      size="sm"
+                      hoverScale={1.03}
+                      variant="primary"
+                      disabled={isRenewing}
+                      onClick={handleRenew}
+                    />
+                  </div>
+                ) : null}
+
+                {renewError ? (
+                  <p className={styles.photoRenewError} role="alert">
+                    {renewError}
+                  </p>
+                ) : null}
+              </div>
             </div>
 
-            <div className={styles.frontBody}>
-              <h3 className={styles.name}>{member.full_name}</h3>
-              <p className={styles.days}>{daysLabel}</p>
-              <p className={styles.joined}>Joined {joinedDate}</p>
+            <div className={styles.frontBody} ref={frontBodyRef}>
+              <div className={styles.frontIdentity}>
+                <h3 className={styles.name}>{member.full_name}</h3>
+                <p
+                  className={[styles.days, styles[`days_${status}`]].join(' ')}
+                >
+                  {daysLabel}
+                </p>
+              </div>
+
+              <div className={styles.metaRow} aria-label="Plan and membership dates">
+                <div className={styles.metaItem}>
+                  <span className={styles.metaLabel}>Plan</span>
+                  <span className={styles.metaValue}>{planLabel}</span>
+                </div>
+                <div className={styles.metaDivider} aria-hidden="true" />
+                <div className={styles.metaItem}>
+                  <span className={styles.metaLabel}>Joined</span>
+                  <span className={styles.metaValue}>{joinedDate}</span>
+                </div>
+                <div className={styles.metaDivider} aria-hidden="true" />
+                <div className={styles.metaItem}>
+                  <span className={styles.metaLabel}>Ends</span>
+                  <span className={styles.metaValue}>{endsDate}</span>
+                </div>
+              </div>
+
               <div className={styles.frontFooter}>
                 <Badge status={status} />
                 <span
@@ -186,15 +427,16 @@ const MemberFlipCard = ({
 
           <div
             className={[styles.face, styles.back].join(' ')}
+            style={faceStyle}
             aria-hidden={!isFlipped}
           >
             <div ref={backContentRef} className={styles.backInner}>
               <div className={styles.backTop}>
                 <div className={styles.backIdentity}>
-                  {member.selfie_url ? (
+                  {selfieSrc ? (
                     <img
                       className={styles.thumb}
-                      src={member.selfie_url}
+                      src={selfieSrc}
                       alt=""
                     />
                   ) : (
@@ -222,51 +464,61 @@ const MemberFlipCard = ({
               <dl className={styles.details}>
                 <div>
                   <dt>Phone</dt>
-                  <dd>{member.phone_number}</dd>
+                  <dd className={styles.phoneAction}>
+                    <CallButton
+                      phoneNumber={member.phone_number}
+                      label={member.phone_number}
+                    />
+                  </dd>
                 </div>
                 <div>
-                  <dt>Ends</dt>
-                  <dd>{formatDisplayDate(endDate)}</dd>
+                  <dt>Plan</dt>
+                  <dd>{formatPlanLabel(member.plan_type)}</dd>
                 </div>
                 <div>
-                  <dt>Joined</dt>
-                  <dd>{joinedDate}</dd>
+                  <dt>Paid</dt>
+                  <dd>{formatPaidDurationLabel(member.paid_duration_months)}</dd>
                 </div>
               </dl>
 
+              <LiquidButton
+                to={`/dashboard/member/${member.id}`}
+                label="Show details"
+                size="sm"
+                fullWidth
+                hoverScale={1.03}
+                variant="secondary"
+                icon={ExternalLink}
+                onClick={(event) => event.stopPropagation()}
+              />
+
               <div className={styles.paymentBlock}>
-                <p className={styles.paymentLabel}>Payment</p>
+                <p className={styles.paymentLabel}>Payment flag</p>
                 <div
                   className={styles.paymentToggle}
                   role="group"
                   aria-label="Payment status"
                 >
-                  <button
+                  <LiquidButton
                     type="button"
-                    className={[
-                      styles.paymentBtn,
-                      isPaid ? styles.paymentBtnActive : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ')}
+                    label="Paid"
+                    size="sm"
+                    fullWidth
+                    hoverScale={1.03}
+                    variant={isPaid ? 'success' : 'secondary'}
                     disabled={isSavingPayment}
                     onClick={() => handlePaymentChange('paid')}
-                  >
-                    Paid
-                  </button>
-                  <button
+                  />
+                  <LiquidButton
                     type="button"
-                    className={[
-                      styles.paymentBtn,
-                      !isPaid ? styles.paymentBtnPending : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' ')}
+                    label="Pending"
+                    size="sm"
+                    fullWidth
+                    hoverScale={1.03}
+                    variant={!isPaid ? 'warning' : 'secondary'}
                     disabled={isSavingPayment}
                     onClick={() => handlePaymentChange('pending')}
-                  >
-                    Pending
-                  </button>
+                  />
                 </div>
                 {paymentError ? (
                   <p className={styles.paymentError} role="alert">
@@ -276,17 +528,66 @@ const MemberFlipCard = ({
               </div>
 
               <div className={styles.backActions}>
-                <WhatsAppButton
-                  memberId={member.id}
-                  phoneNumber={member.phone_number}
-                  message={getReminderMessage(member)}
-                  label="Send reminder"
-                />
+                <div className={styles.actionRow}>
+                  <WhatsAppButton
+                    memberId={member.id}
+                    phoneNumber={member.phone_number}
+                    message={getReminderMessage(member)}
+                    label="WhatsApp"
+                    fullWidth
+                  />
+                </div>
+                {onDelete ? (
+                  <LiquidButton
+                    type="button"
+                    label="Delete"
+                    size="sm"
+                    fullWidth
+                    hoverScale={1.03}
+                    variant="danger"
+                    icon={Trash2}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setIsDeleteOpen(true);
+                    }}
+                  />
+                ) : null}
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      <Modal
+        isOpen={isDeleteOpen}
+        onClose={handleCloseDelete}
+        title="Delete member?"
+      >
+        <p className={styles.modalCopy}>
+          This permanently removes <strong>{member.full_name}</strong> from your
+          list. This cannot be undone.
+        </p>
+        {deleteError ? (
+          <p className={styles.modalError} role="alert">
+            {deleteError}
+          </p>
+        ) : null}
+        <div className={styles.modalActions}>
+          <Button
+            label="Cancel"
+            variant="secondary"
+            onClick={handleCloseDelete}
+            disabled={isDeleting}
+          />
+          <Button
+            label="Delete"
+            variant="danger"
+            icon={Trash2}
+            onClick={handleConfirmDelete}
+            isLoading={isDeleting}
+          />
+        </div>
+      </Modal>
     </div>
   );
 };

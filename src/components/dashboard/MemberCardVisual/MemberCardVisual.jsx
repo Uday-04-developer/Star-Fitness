@@ -1,8 +1,10 @@
 import { useEffect, useRef } from 'react';
 import gsap from 'gsap';
 import Badge from '@/components/common/Badge/Badge';
+import { useSignedSelfieUrl } from '@/hooks/useSignedSelfieUrl';
 import {
   formatDisplayDate,
+  formatPaidDurationLabel,
   formatPlanLabel,
   getMembershipStatus,
   getPlanEndDate,
@@ -21,9 +23,11 @@ const getInitials = (name) =>
 
 const MemberCardVisual = ({ member }) => {
   const cardRef = useRef(null);
+  const selfieSrc = useSignedSelfieUrl(member.selfie_url);
   const status = getMembershipStatus(member);
   const endDate = getPlanEndDate(member);
-  const memberSince = formatDisplayDate(member.created_at?.slice(0, 10) || member.plan_start_date);
+  const memberSince = formatDisplayDate(member.plan_start_date);
+  const paidLabel = formatPaidDurationLabel(member.paid_duration_months);
 
   useEffect(() => {
     const reduced = prefersReducedMotion();
@@ -64,10 +68,10 @@ const MemberCardVisual = ({ member }) => {
       </div>
 
       <div className={styles.identity}>
-        {member.selfie_url ? (
+        {selfieSrc ? (
           <img
             className={styles.photo}
-            src={member.selfie_url}
+            src={selfieSrc}
             alt={`Photo of ${member.full_name}`}
           />
         ) : (
@@ -78,7 +82,9 @@ const MemberCardVisual = ({ member }) => {
 
         <div>
           <h2 className={styles.name}>{member.full_name}</h2>
-          <p className={styles.plan}>{formatPlanLabel(member.plan_type)} plan</p>
+          <p className={styles.plan}>
+            {formatPlanLabel(member.plan_type)} · Paid {paidLabel}
+          </p>
         </div>
       </div>
 
@@ -88,7 +94,7 @@ const MemberCardVisual = ({ member }) => {
           <dd>{formatDisplayDate(endDate)}</dd>
         </div>
         <div>
-          <dt>Member since</dt>
+          <dt>Joined</dt>
           <dd>{memberSince}</dd>
         </div>
       </dl>

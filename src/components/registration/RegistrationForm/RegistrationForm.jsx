@@ -3,13 +3,14 @@ import Button from '@/components/common/Button/Button';
 import DatePicker from '@/components/common/DatePicker/DatePicker';
 import PlanSelector from '@/components/registration/PlanSelector/PlanSelector';
 import SelfieCapture from '@/components/registration/SelfieCapture/SelfieCapture';
+import { PAID_DURATION_OPTIONS } from '@/lib/constants';
 import { useMemberForm } from '@/hooks/useMemberForm';
-import { formatDisplayDate, getNearTermDateRange } from '@/utils/date';
+import { formatDisplayDate, formatPaidDurationLabel, getDobDateRange } from '@/utils/date';
 import styles from './RegistrationForm.module.css';
 
 const RegistrationForm = ({ onSuccess }) => {
-  const dateRange = getNearTermDateRange();
-  const dateHelper = `Selectable: ${formatDisplayDate(dateRange.min)} – ${formatDisplayDate(dateRange.max)}.`;
+  const dobRange = getDobDateRange();
+  const dobHelper = `Optional. Selectable: ${formatDisplayDate(dobRange.min)} – ${formatDisplayDate(dobRange.max)}.`;
   const {
     values,
     errors,
@@ -17,6 +18,7 @@ const RegistrationForm = ({ onSuccess }) => {
     submitError,
     isSubmitting,
     setField,
+    setPlanType,
     setSelfie,
     submit,
   } = useMemberForm({
@@ -103,9 +105,9 @@ const RegistrationForm = ({ onSuccess }) => {
               name="date_of_birth"
               value={values.date_of_birth}
               onChange={handleChange}
-              min={dateRange.min}
-              max={dateRange.max}
-              helperText={dateHelper}
+              min={dobRange.min}
+              max={dobRange.max}
+              helperText={dobHelper}
             />
           </div>
           <Input
@@ -127,9 +129,39 @@ const RegistrationForm = ({ onSuccess }) => {
         </p>
         <PlanSelector
           selectedPlan={values.plan_type}
-          onChange={(planType) => setField('plan_type', planType)}
+          onChange={setPlanType}
           error={errors.plan_type}
         />
+        <div className={styles.selectField}>
+          <label className={styles.selectLabel} htmlFor="paid_duration_months">
+            Paid duration <span className={styles.requiredMark}>*</span>
+          </label>
+          <select
+            id="paid_duration_months"
+            name="paid_duration_months"
+            className={styles.select}
+            value={values.paid_duration_months}
+            onChange={handleChange}
+            required
+          >
+            <option value="">Select months paid</option>
+            {PAID_DURATION_OPTIONS.map((months) => (
+              <option key={months} value={String(months)}>
+                {formatPaidDurationLabel(months)}
+              </option>
+            ))}
+          </select>
+          {errors.paid_duration_months ? (
+            <p className={styles.fieldError} role="alert">
+              {errors.paid_duration_months}
+            </p>
+          ) : (
+            <p className={styles.fieldHint}>
+              Defaults to the selected plan; change if they paid for a different
+              length.
+            </p>
+          )}
+        </div>
         <div className={styles.amountField}>
           <Input
             label="Amount paid (optional)"

@@ -8,6 +8,8 @@ const WhatsAppButton = ({
   phoneNumber,
   message,
   label = 'WhatsApp',
+  size = 'sm',
+  fullWidth = false,
 }) => {
   const handleClick = (event) => {
     event.stopPropagation();
@@ -36,9 +38,11 @@ const WhatsAppButton = ({
     <LiquidButton
       type="button"
       variant="whatsapp"
+      size={size}
       label={label}
       icon={MessageCircle}
       onClick={handleClick}
+      fullWidth={fullWidth}
       aria-label={`Send WhatsApp reminder to ${phoneNumber}`}
       hoverScale={1.03}
     />

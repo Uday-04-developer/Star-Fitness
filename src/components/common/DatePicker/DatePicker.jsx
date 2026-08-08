@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import {
+  compareIsoDates,
   formatDisplayDate,
   formatMonthTitle,
   getCalendarCells,
@@ -30,6 +31,7 @@ const DatePicker = ({
 }) => {
   const inputId = useId();
   const rootRef = useRef(null);
+  const todayIso = getTodayIsoDate();
   const range = useMemo(() => {
     const defaults = getNearTermDateRange();
     return {
@@ -38,12 +40,14 @@ const DatePicker = ({
     };
   }, [minProp, maxProp]);
 
-  const initialMonth = toParts(value || range.min);
+  // Past ranges (e.g. DOB): open on max (today). Near-term: open on min (today).
+  const defaultFocusIso =
+    compareIsoDates(range.min, todayIso) < 0 ? range.max : range.min;
+  const initialMonth = toParts(value || defaultFocusIso);
   const [isOpen, setIsOpen] = useState(false);
   const [viewYear, setViewYear] = useState(initialMonth.year);
   const [viewMonth, setViewMonth] = useState(initialMonth.month);
 
-  const todayIso = getTodayIsoDate();
   const cells = useMemo(
     () => getCalendarCells(viewYear, viewMonth),
     [viewYear, viewMonth],
@@ -80,6 +84,10 @@ const DatePicker = ({
     setViewMonth(next.getUTCMonth() + 1);
   };
 
+  const shiftYear = (delta) => {
+    setViewYear((year) => year + delta);
+  };
+
   const handleSelect = (isoDate) => {
     if (!isIsoDateInRange(isoDate, range.min, range.max)) {
       return;
@@ -95,7 +103,7 @@ const DatePicker = ({
   };
 
   const openPicker = () => {
-    const focus = toParts(value || range.min);
+    const focus = toParts(value || defaultFocusIso);
     setViewYear(focus.year);
     setViewMonth(focus.month);
     setIsOpen((open) => !open);
@@ -130,25 +138,45 @@ const DatePicker = ({
       {isOpen ? (
         <div className={styles.popover} role="dialog" aria-label={label}>
           <div className={styles.toolbar}>
-            <button
-              type="button"
-              className={styles.navBtn}
-              onClick={() => shiftMonth(-1)}
-              aria-label="Previous month"
-            >
-              <ChevronLeft size={18} strokeWidth={1.75} aria-hidden="true" />
-            </button>
+            <div className={styles.navGroup}>
+              <button
+                type="button"
+                className={styles.navBtn}
+                onClick={() => shiftYear(-1)}
+                aria-label="Previous year"
+              >
+                <ChevronsLeft size={18} strokeWidth={1.75} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className={styles.navBtn}
+                onClick={() => shiftMonth(-1)}
+                aria-label="Previous month"
+              >
+                <ChevronLeft size={18} strokeWidth={1.75} aria-hidden="true" />
+              </button>
+            </div>
             <p className={styles.monthTitle}>
               {formatMonthTitle(viewYear, viewMonth)}
             </p>
-            <button
-              type="button"
-              className={styles.navBtn}
-              onClick={() => shiftMonth(1)}
-              aria-label="Next month"
-            >
-              <ChevronRight size={18} strokeWidth={1.75} aria-hidden="true" />
-            </button>
+            <div className={styles.navGroup}>
+              <button
+                type="button"
+                className={styles.navBtn}
+                onClick={() => shiftMonth(1)}
+                aria-label="Next month"
+              >
+                <ChevronRight size={18} strokeWidth={1.75} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className={styles.navBtn}
+                onClick={() => shiftYear(1)}
+                aria-label="Next year"
+              >
+                <ChevronsRight size={18} strokeWidth={1.75} aria-hidden="true" />
+              </button>
+            </div>
           </div>
 
           <div className={styles.weekdays} aria-hidden="true">

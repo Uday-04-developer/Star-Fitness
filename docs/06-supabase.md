@@ -29,16 +29,18 @@ Defines the complete backend data model: tables, columns, types, relationships, 
 | `date_of_birth` | `date` | nullable | |
 | `address` | `text` | nullable | |
 | `selfie_url` | `text` | nullable | Public URL from Supabase Storage |
-| `plan_type` | `text` | not null | `'monthly' \| 'quarterly' \| 'half_yearly' \| 'yearly'` |
-| `plan_duration_days` | `integer` | not null | Derived from `plan_type` at insert time — see `src/lib/constants.js` mapping |
-| `plan_start_date` | `date` | not null | Defaults to registration date unless backdated by staff |
+| `plan_type` | `text` | not null | `'monthly' \| 'quarterly' \| 'half_yearly' \| 'yearly'` — selected package |
+| `plan_duration_days` | `integer` | not null | Advertised package length from `PLAN_DURATIONS` (metadata only) |
+| `plan_start_date` | `date` | not null | Original join date — **immutable after registration** |
+| `paid_duration_months` | `integer` | not null, check in (1,2,3,6,12) | Last paid chunk (calendar months) |
+| `current_period_end` | `date` | not null | **Sole source of truth for access expiry** |
 | `plan_amount` | `numeric` | nullable | Amount paid, manually entered — no payment gateway in v1 |
-| `payment_status` | `text` | not null, default `'paid'` | `'paid' \| 'pending'` |
+| `payment_status` | `text` | not null, default `'paid'` | `'paid' \| 'pending'` — flag only; does not move dates |
 | `notes` | `text` | nullable | Free-text staff notes |
 | `created_at` | `timestamptz` | not null, default `now()` | |
 | `updated_at` | `timestamptz` | not null, default `now()` | Updated via trigger on row update |
 
-**Explicitly NOT stored as columns:** `plan_end_date` and `status` (Active/Expiring/Expired) are **computed, not stored** — see "Membership Status Calculation" below. Storing derived state that can drift out of sync with `plan_start_date` is a common source of bugs; this schema avoids it entirely.
+**Explicitly NOT stored:** membership `status` (Active/Expiring/Expired) — computed from `current_period_end` vs today. Do not derive access from `plan_start_date + plan_duration_days`.
 
 ### Table: `reminder_log` (lightweight, optional but recommended)
 | Column | Type | Constraints | Notes |
@@ -126,16 +128,23 @@ export const PLAN_DURATIONS = {
 
 ### Algorithm
 ```
-plan_end_date = plan_start_date + plan_duration_days (in days, using UTC-safe date math)
-days_remaining = plan_end_date - today (in days)
+expiry = current_period_end   (stored; sole source of truth)
+days_remaining = expiry - today (in days, Asia/Kolkata date-only)
 
 if days_remaining < 0:      status = "expired"
 else if days_remaining <= 3: status = "expiring_soon"
 else:                        status = "active"
 ```
 
+Renewal (does not change `plan_start_date`):
+```
+base = current_period_end if still active/expiring today, else today
+current_period_end = addCalendarMonths(base, paid_duration_months)
+```
+
 - `today` is computed via `new Date()` normalized to midnight in the gym's local timezone context (`Asia/Kolkata`) — never compare raw `Date` objects with time-of-day components, always normalize to date-only before subtracting, to avoid off-by-one bugs near midnight.
 - The "expiring soon" threshold (`3` days) is a named constant `EXPIRING_SOON_THRESHOLD_DAYS` in `src/lib/constants.js`, not a magic number — the gym owner may want to adjust this later.
+- Paid duration uses **calendar months** with month-end clamp (see `addCalendarMonths` in `src/utils/date.js`).
 
 ## Folder References
 - Client setup: `src/lib/supabaseClient.js`

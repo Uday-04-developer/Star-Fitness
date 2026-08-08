@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -6,6 +6,7 @@ import Navbar from '@/components/marketing/Navbar/Navbar';
 import Footer from '@/components/marketing/Footer/Footer';
 import Hero from '@/components/marketing/Hero/Hero';
 import FeaturesSection from '@/components/marketing/FeaturesSection/FeaturesSection';
+import WelcomeLamp from '@/components/marketing/WelcomeLamp/WelcomeLamp';
 import GlassCard from '@/components/common/GlassCard/GlassCard';
 import LiquidButton from '@/components/common/LiquidButton/LiquidButton';
 import { useLenis } from '@/hooks/useLenis';
@@ -18,8 +19,13 @@ gsap.registerPlugin(ScrollTrigger);
 const Home = () => {
   const ctaRef = useRef(null);
   const navigate = useNavigate();
+  const [showWelcome, setShowWelcome] = useState(true);
 
   useLenis();
+
+  const handleEnter = useCallback(() => {
+    setShowWelcome(false);
+  }, []);
 
   useEffect(() => {
     document.title = 'Star Fitness Gym — Premium Fitness, Real Results';
@@ -39,6 +45,10 @@ const Home = () => {
   }, []);
 
   useEffect(() => {
+    if (showWelcome) {
+      return undefined;
+    }
+
     const reduced = prefersReducedMotion();
     const ctx = gsap.context(() => {
       if (reduced) {
@@ -77,7 +87,7 @@ const Home = () => {
     }, ctaRef);
 
     return () => ctx.revert();
-  }, []);
+  }, [showWelcome]);
 
   const handleStart = () => {
     navigate('/register');
@@ -85,6 +95,8 @@ const Home = () => {
 
   return (
     <div className={styles.page}>
+      <WelcomeLamp open={showWelcome} onEnter={handleEnter} />
+
       <Navbar />
       <main>
         <Hero />

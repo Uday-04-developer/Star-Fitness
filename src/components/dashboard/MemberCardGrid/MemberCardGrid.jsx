@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
+import ChromaGrid from '@/components/common/ChromaGrid/ChromaGrid';
 import MemberFlipCard from '@/components/dashboard/MemberFlipCard/MemberFlipCard';
 import { MOTION } from '@/lib/constants';
 import { prefersReducedMotion } from '@/utils/motion';
@@ -11,6 +12,8 @@ const MemberCardGrid = ({
   members,
   isLoading,
   onPaymentStatusChange,
+  onRenewMember,
+  onDeleteMember,
 }) => {
   const [flippedId, setFlippedId] = useState(null);
   const gridRef = useRef(null);
@@ -18,6 +21,14 @@ const MemberCardGrid = ({
   const handleFlip = (memberId) => {
     setFlippedId((current) => (current === memberId ? null : memberId));
   };
+
+  const handleDelete = async (memberId) => {
+    await onDeleteMember?.(memberId);
+    setFlippedId((current) => (current === memberId ? null : current));
+  };
+
+  // Animate on list identity only — not on payment/field updates (avoids double flash).
+  const memberIdsKey = members.map((member) => member.id).join(',');
 
   useEffect(() => {
     if (isLoading || !members.length || !gridRef.current) {
@@ -44,7 +55,9 @@ const MemberCardGrid = ({
     }, gridRef);
 
     return () => ctx.revert();
-  }, [isLoading, members]);
+    // members.length is implied by memberIdsKey; avoid depending on `members` object.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: ids only
+  }, [isLoading, memberIdsKey]);
 
   if (isLoading) {
     return (
@@ -72,17 +85,22 @@ const MemberCardGrid = ({
   }
 
   return (
-    <div ref={gridRef} className={styles.grid}>
-      {members.map((member) => (
-        <div key={member.id} className={styles.item}>
-          <MemberFlipCard
-            member={member}
-            isFlipped={flippedId === member.id}
-            onFlip={handleFlip}
-            onPaymentStatusChange={onPaymentStatusChange}
-          />
-        </div>
-      ))}
+    <div ref={gridRef} className={styles.chromaWrap}>
+      <ChromaGrid className={styles.chroma} radius={260} damping={0.4}>
+        {members.map((member, index) => (
+          <div key={member.id} className={styles.item}>
+            <MemberFlipCard
+              member={member}
+              isFlipped={flippedId === member.id}
+              onFlip={handleFlip}
+              onPaymentStatusChange={onPaymentStatusChange}
+              onRenew={onRenewMember}
+              onDelete={handleDelete}
+              gradientIndex={index}
+            />
+          </div>
+        ))}
+      </ChromaGrid>
     </div>
   );
 };

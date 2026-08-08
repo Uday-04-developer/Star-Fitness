@@ -19,13 +19,13 @@ const Footer = () => {
         <div className={styles.contact}>
           <p className={styles.contactLabel}>Visit us</p>
           <p className={styles.contactText}>
-            12 Fitness Lane, Sector 7
+            Star Fitness Main Branch, 
             <br />
-            Near City Sports Complex
+            Near Old Cresent, Main Road, Sehore
           </p>
           <p className={styles.contactText}>
-            <a href="tel:+919876543210" className={styles.contactLink}>
-              +91 98765 43210
+            <a href="tel:+916263119717" className={styles.contactLink}>
+              +91 62631 19717
             </a>
           </p>
         </div>

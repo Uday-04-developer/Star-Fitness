@@ -1,0 +1,24 @@
+.root {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 4.5rem;
+  overflow: visible;
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 4.5rem;
+  overflow: visible;
+}
+
+.text {
+  user-select: none;
+}
+
+.measure {
+  visibility: hidden;
+  pointer-events: none;
+}

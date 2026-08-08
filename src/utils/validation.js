@@ -47,3 +47,12 @@ export const validatePlan = (value) => {
 
   return '';
 };
+
+export const validatePaidDuration = (value) => {
+  const months = Number(value);
+  if (![1, 2, 3, 6, 12].includes(months)) {
+    return 'Select how many months were paid (1, 2, 3, 6, or 12).';
+  }
+
+  return '';
+};

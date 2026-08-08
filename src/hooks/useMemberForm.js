@@ -1,9 +1,11 @@
 import { useCallback, useReducer } from 'react';
-import { PLAN_DURATIONS } from '@/lib/constants';
+import { PLAN_DURATIONS, PLAN_TO_PAID_MONTHS, PAID_DURATION_OPTIONS } from '@/lib/constants';
 import { supabase } from '@/lib/supabaseClient';
+import { addCalendarMonths, getTodayIsoDate } from '@/utils/date';
 import {
   validateEmail,
   validateFullName,
+  validatePaidDuration,
   validatePhone,
   validatePlan,
 } from '@/utils/validation';
@@ -17,6 +19,7 @@ const initialState = {
     date_of_birth: '',
     address: '',
     plan_type: '',
+    paid_duration_months: '',
     plan_amount: '',
   },
   errors: {},
@@ -96,7 +99,8 @@ const reducer = (state, action) => {
 const buildMemberInsert = (values, selfieUrl) => {
   const planType = values.plan_type;
   const phoneDigits = String(values.phone_number).replace(/\D/g, '');
-  const today = new Date().toISOString().slice(0, 10);
+  const paidMonths = Number(values.paid_duration_months);
+  const today = getTodayIsoDate();
 
   return {
     full_name: values.full_name.trim(),
@@ -109,6 +113,8 @@ const buildMemberInsert = (values, selfieUrl) => {
     plan_type: planType,
     plan_duration_days: PLAN_DURATIONS[planType],
     plan_start_date: today,
+    paid_duration_months: paidMonths,
+    current_period_end: addCalendarMonths(today, paidMonths),
     plan_amount: values.plan_amount ? Number(values.plan_amount) : null,
     payment_status: 'paid',
     notes: null,
@@ -128,8 +134,8 @@ const uploadSelfie = async (blob) => {
     throw uploadError;
   }
 
-  const { data } = supabase.storage.from('member-selfies').getPublicUrl(fileName);
-  return data.publicUrl;
+  // Store object path only — bucket is private; dashboard uses signed URLs.
+  return fileName;
 };
 
 const toFriendlyInsertError = (error) => {
@@ -163,6 +169,18 @@ export const useMemberForm = ({ onMemberCreated } = {}) => {
     dispatch({ type: 'SET_FIELD', field, value });
   }, []);
 
+  const setPlanType = useCallback((planType) => {
+    dispatch({ type: 'SET_FIELD', field: 'plan_type', value: planType });
+    const defaultPaid = PLAN_TO_PAID_MONTHS[planType];
+    if (defaultPaid && PAID_DURATION_OPTIONS.includes(defaultPaid)) {
+      dispatch({
+        type: 'SET_FIELD',
+        field: 'paid_duration_months',
+        value: String(defaultPaid),
+      });
+    }
+  }, []);
+
   const setSelfie = useCallback((blob) => {
     if (!blob) {
       dispatch({ type: 'CLEAR_SELFIE' });
@@ -183,6 +201,9 @@ export const useMemberForm = ({ onMemberCreated } = {}) => {
       phone_number: validatePhone(state.values.phone_number),
       email: validateEmail(state.values.email),
       plan_type: validatePlan(state.values.plan_type),
+      paid_duration_months: validatePaidDuration(
+        state.values.paid_duration_months,
+      ),
       selfie: state.selfieBlob
         ? ''
         : 'A selfie is required. Turn on the camera and capture your photo.',
@@ -255,6 +276,7 @@ export const useMemberForm = ({ onMemberCreated } = {}) => {
     createdMember: state.createdMember,
     isSubmitting: state.status === 'submitting',
     setField,
+    setPlanType,
     setSelfie,
     submit,
     reset,
