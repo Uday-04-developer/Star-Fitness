@@ -187,6 +187,12 @@ const Dashboard = () => {
           <p className={styles.owner}>Admin · Lokesh Verma</p>
         </div>
         <div className={styles.headerActions}>
+          <LiquidButton
+            label="Register Member"
+            icon={UserPlus}
+            onClick={handleRegister}
+            variant="solid"
+          />
           <Button
             label="Export Backup"
             variant="secondary"
@@ -194,12 +200,6 @@ const Dashboard = () => {
             onClick={handleOpenExport}
             disabled={isExporting}
             isLoading={isExporting}
-          />
-          <LiquidButton
-            label="Register Member"
-            icon={UserPlus}
-            onClick={handleRegister}
-            variant="solid"
           />
           <Button
             label="Logout"
