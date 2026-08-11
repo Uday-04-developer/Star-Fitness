@@ -1,13 +1,14 @@
-import { useCallback, useReducer } from 'react';
-import { PLAN_DURATIONS, PLAN_TO_PAID_MONTHS, PAID_DURATION_OPTIONS } from '@/lib/constants';
+import { useCallback, useReducer, useRef } from 'react';
+import { PLAN_TO_PAID_MONTHS, PAID_DURATION_OPTIONS } from '@/lib/constants';
 import { supabase } from '@/lib/supabaseClient';
-import { addCalendarMonths, getTodayIsoDate } from '@/utils/date';
+import { getNearTermDateRange, getTodayIsoDate } from '@/utils/date';
 import {
   validateEmail,
   validateFullName,
   validatePaidDuration,
   validatePhone,
   validatePlan,
+  validatePlanStartDate,
 } from '@/utils/validation';
 
 const initialState = {
@@ -16,7 +17,7 @@ const initialState = {
     phone_number: '',
     email: '',
     gender: '',
-    date_of_birth: '',
+    plan_start_date: getTodayIsoDate(),
     address: '',
     plan_type: '',
     paid_duration_months: '',
@@ -93,80 +94,36 @@ const reducer = (state, action) => {
         errorFocusToken: state.errorFocusToken + 1,
       };
     case 'RESET':
-      return { ...initialState };
+      return {
+        ...initialState,
+        values: {
+          ...initialState.values,
+          plan_start_date: getTodayIsoDate(),
+        },
+      };
     default:
       return state;
   }
 };
 
-const buildMemberInsert = (values, selfieUrl) => {
-  const planType = values.plan_type;
-  const phoneDigits = String(values.phone_number).replace(/\D/g, '');
-  const paidMonths = Number(values.paid_duration_months);
-  const today = getTodayIsoDate();
-
-  return {
-    full_name: values.full_name.trim(),
-    phone_number: phoneDigits,
-    email: values.email.trim() || null,
-    gender: values.gender || null,
-    date_of_birth: values.date_of_birth || null,
-    address: values.address.trim() || null,
-    selfie_url: selfieUrl,
-    plan_type: planType,
-    plan_duration_days: PLAN_DURATIONS[planType],
-    plan_start_date: today,
-    paid_duration_months: paidMonths,
-    current_period_end: addCalendarMonths(today, paidMonths),
-    plan_amount: values.plan_amount ? Number(values.plan_amount) : null,
-    payment_status: 'paid',
-    notes: null,
-  };
-};
-
-const uploadSelfie = async (blob) => {
-  const fileName = `${crypto.randomUUID()}.jpg`;
-  const { error: uploadError } = await supabase.storage
-    .from('member-selfies')
-    .upload(fileName, blob, {
-      contentType: 'image/jpeg',
-      upsert: false,
-    });
-
-  if (uploadError) {
-    throw uploadError;
+const readFunctionErrorMessage = async (error, fallback) => {
+  try {
+    if (error?.context && typeof error.context.json === 'function') {
+      const body = await error.context.json();
+      if (body?.error) {
+        return String(body.error);
+      }
+    }
+  } catch {
+    // ignore parse failures
   }
 
-  // Store object path only — bucket is private; dashboard uses signed URLs.
-  return fileName;
-};
-
-const toFriendlyInsertError = (error) => {
-  const message = String(error?.message || '').toLowerCase();
-  const code = String(error?.code || '');
-
-  if (message.includes('duplicate') || message.includes('unique') || code === '23505') {
-    return 'This phone number is already registered. Please use a different number or ask the front desk for help.';
-  }
-
-  if (
-    message.includes('jwt') ||
-    message.includes('api key') ||
-    code === '401' ||
-    error?.status === 401
-  ) {
-    return "Couldn't reach the database. Ask the gym owner to check Supabase keys and that the schema was applied.";
-  }
-
-  if (message.includes('row-level security') || message.includes('rls') || code === '42501') {
-    return "Couldn't save member (permission denied). Ask the gym owner to apply the Supabase RLS policies.";
-  }
-
-  return "Couldn't save member. Check your connection and try again.";
+  return fallback;
 };
 
 export const useMemberForm = ({ onMemberCreated } = {}) => {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const isSubmittingRef = useRef(false);
 
   const setField = useCallback((field, value) => {
     dispatch({ type: 'SET_FIELD', field, value });
@@ -199,10 +156,15 @@ export const useMemberForm = ({ onMemberCreated } = {}) => {
   }, []);
 
   const validate = useCallback(() => {
+    const joinRange = getNearTermDateRange();
     const errors = {
       full_name: validateFullName(state.values.full_name),
       phone_number: validatePhone(state.values.phone_number),
       email: validateEmail(state.values.email),
+      plan_start_date: validatePlanStartDate(state.values.plan_start_date, {
+        min: joinRange.min,
+        max: joinRange.max,
+      }),
       plan_type: validatePlan(state.values.plan_type),
       paid_duration_months: validatePaidDuration(
         state.values.paid_duration_months,
@@ -218,6 +180,10 @@ export const useMemberForm = ({ onMemberCreated } = {}) => {
   }, [state.selfieBlob, state.values]);
 
   const submit = useCallback(async () => {
+    if (isSubmittingRef.current) {
+      return;
+    }
+
     const errors = validate();
 
     if (Object.keys(errors).length > 0) {
@@ -225,47 +191,65 @@ export const useMemberForm = ({ onMemberCreated } = {}) => {
       return;
     }
 
+    isSubmittingRef.current = true;
     dispatch({ type: 'SUBMIT_START' });
 
     try {
-      let selfieUrl;
-      try {
-        selfieUrl = await uploadSelfie(state.selfieBlob);
-      } catch (uploadError) {
-        console.error(uploadError);
-        throw new Error(
-          "Couldn't upload your selfie. Check your connection and try again.",
-        );
-      }
+      const formData = new FormData();
+      formData.append('selfie', state.selfieBlob, 'selfie.jpg');
+      formData.append('full_name', state.values.full_name.trim());
+      formData.append(
+        'phone_number',
+        String(state.values.phone_number).replace(/\D/g, ''),
+      );
+      formData.append('email', state.values.email.trim());
+      formData.append('gender', state.values.gender || '');
+      formData.append('date_of_birth', '');
+      formData.append('address', state.values.address.trim());
+      formData.append('plan_type', state.values.plan_type);
+      formData.append(
+        'paid_duration_months',
+        String(state.values.paid_duration_months),
+      );
+      formData.append('plan_amount', state.values.plan_amount || '');
+      formData.append(
+        'plan_start_date',
+        String(state.values.plan_start_date).slice(0, 10),
+      );
 
-      // Insert only — anon RLS allows INSERT but not SELECT, so
-      // `.select()` / RETURNING would 401 under the documented policies.
-      const insertPayload = buildMemberInsert(state.values, selfieUrl);
-      const { error } = await supabase.from('members').insert(insertPayload);
+      const { data, error } = await supabase.functions.invoke(
+        'register-member',
+        { body: formData },
+      );
 
       if (error) {
         console.error(error);
-        throw error;
+        const message = await readFunctionErrorMessage(
+          error,
+          "Couldn't save member. Check your connection and try again.",
+        );
+        throw new Error(message);
       }
 
-      const member = {
-        ...insertPayload,
-        id: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
+      if (!data?.ok || !data?.member) {
+        throw new Error(
+          data?.error ||
+            "Couldn't save member. Check your connection and try again.",
+        );
+      }
 
-      onMemberCreated?.(member, '');
-      dispatch({ type: 'SUBMIT_SUCCESS', member, warning: '' });
+      onMemberCreated?.(data.member, '');
+      dispatch({ type: 'SUBMIT_SUCCESS', member: data.member, warning: '' });
     } catch (error) {
       console.error(error);
       dispatch({
         type: 'SUBMIT_ERROR',
         message:
-          error?.message?.startsWith("Couldn't upload")
-            ? error.message
-            : toFriendlyInsertError(error),
+          error?.message ||
+          "Couldn't save member. Check your connection and try again.",
       });
+    } finally {
+      isSubmittingRef.current = false;
     }
   }, [onMemberCreated, state.selfieBlob, state.values, validate]);
 

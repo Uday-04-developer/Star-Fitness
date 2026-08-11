@@ -366,10 +366,29 @@ export const fetchMemberById = async (id) => {
 };
 
 export const deleteMember = async (id) => {
-  const { error } = await supabase.from('members').delete().eq('id', id);
+  const { data, error } = await supabase.functions.invoke('delete-member', {
+    body: { memberId: id },
+  });
 
   if (error) {
     console.error(error);
-    throw new Error("Couldn't delete this member. Please try again.");
+    let message = "Couldn't delete this member. Please try again.";
+    try {
+      if (error?.context && typeof error.context.json === 'function') {
+        const body = await error.context.json();
+        if (body?.error) {
+          message = String(body.error);
+        }
+      }
+    } catch {
+      // keep default message
+    }
+    throw new Error(message);
+  }
+
+  if (!data?.ok) {
+    throw new Error(
+      data?.error || "Couldn't delete this member. Please try again.",
+    );
   }
 };

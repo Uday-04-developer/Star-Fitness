@@ -1,0 +1,19 @@
+# Star Fitness — Supabase local config (Edge Functions)
+# Do not put service-role / secret keys in this file or in VITE_* env vars.
+
+project_id = "star-fitness"
+
+[api]
+enabled = true
+
+[db]
+major_version = 15
+
+[functions.register-member]
+verify_jwt = false
+
+[functions.delete-member]
+verify_jwt = true
+
+[functions.export-members-backup]
+verify_jwt = true

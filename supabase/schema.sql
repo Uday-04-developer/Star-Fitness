@@ -65,15 +65,23 @@ for each row execute function public.set_updated_at();
 
 alter table public.members enable row level security;
 
+-- Registration inserts are performed by Edge Function `register-member`
+-- using the service role (bypasses RLS). Anon must NOT insert directly.
 drop policy if exists "public_can_register" on public.members;
-create policy "public_can_register"
-on public.members for insert
-to anon
-with check (true);
 
+-- Dashboard: read + update only. Deletes go through Edge Function `delete-member`
+-- (service role). Do not grant authenticated INSERT/DELETE on members.
 drop policy if exists "authenticated_full_access" on public.members;
-create policy "authenticated_full_access"
-on public.members for all
+
+drop policy if exists "authenticated_can_select_members" on public.members;
+create policy "authenticated_can_select_members"
+on public.members for select
+to authenticated
+using (true);
+
+drop policy if exists "authenticated_can_update_members" on public.members;
+create policy "authenticated_can_update_members"
+on public.members for update
 to authenticated
 using (true)
 with check (true);
@@ -97,9 +105,9 @@ to authenticated
 using (true);
 
 -- ---------------------------------------------------------------------------
--- Storage — member-selfies (PRIVATE bucket — Fix 01)
--- Anon may INSERT only (registration upload). Authenticated may SELECT
--- (signed URLs for dashboard). No public/anon SELECT → no list/enumeration.
+-- Storage — member-selfies (PRIVATE bucket)
+-- Selfie upload + privileged delete happen in Edge Functions (service role).
+-- Authenticated may SELECT for signed URLs. No anon SELECT. No client DELETE.
 --
 -- MIGRATION NOTE (existing data — do NOT auto-mutate without owner approval):
 -- Older rows may store full public URLs in members.selfie_url, e.g.
@@ -120,11 +128,8 @@ insert into storage.buckets (id, name, public)
 values ('member-selfies', 'member-selfies', false)
 on conflict (id) do update set public = false;
 
+-- Remove legacy anon upload (registration uploads via register-member)
 drop policy if exists "public_can_upload_selfie" on storage.objects;
-create policy "public_can_upload_selfie"
-on storage.objects for insert
-to anon
-with check (bucket_id = 'member-selfies');
 
 -- Remove public/anon read (closes list + public GET enumeration hole)
 drop policy if exists "public_can_read_selfie" on storage.objects;
@@ -135,12 +140,17 @@ on storage.objects for select
 to authenticated
 using (bucket_id = 'member-selfies');
 
--- Authenticated staff can also upload/replace if needed from the dashboard later
+-- Authenticated staff can upload/replace if needed from the dashboard later
 drop policy if exists "authenticated_can_upload_selfie" on storage.objects;
 create policy "authenticated_can_upload_selfie"
 on storage.objects for insert
 to authenticated
 with check (bucket_id = 'member-selfies');
+
+-- Never grant Storage DELETE to anon or authenticated — Edge Functions only
+drop policy if exists "authenticated_can_delete_selfie" on storage.objects;
+drop policy if exists "anon_can_delete_selfie" on storage.objects;
+drop policy if exists "public_can_delete_selfie" on storage.objects;
 
 -- ---------------------------------------------------------------------------
 -- Realtime — live dashboard updates when a member self-registers

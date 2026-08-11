@@ -107,7 +107,7 @@ const WelcomeLamp = ({ open, onEnter }) => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={textTransition(0.85)}
               >
-                <span className={styles.headingLit}>The Gym</span>
+                <span className={styles.headingLit}>Star Fitness</span>
               </motion.h1>
 
               <motion.p
@@ -117,7 +117,7 @@ const WelcomeLamp = ({ open, onEnter }) => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={textTransition(1.15)}
               >
-               " A place where you can build your body and calm your mind "
+               " WHERE STARS ARE MADE "
               </motion.p>
             </div>
           </div>

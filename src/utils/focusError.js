@@ -30,6 +30,7 @@ export const focusFirstRegistrationError = ({
     'full_name',
     'phone_number',
     'email',
+    'plan_start_date',
     'plan_type',
     'paid_duration_months',
     'selfie',

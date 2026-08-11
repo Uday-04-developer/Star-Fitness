@@ -56,3 +56,25 @@ export const validatePaidDuration = (value) => {
 
   return '';
 };
+
+export const validatePlanStartDate = (value, { min, max } = {}) => {
+  const date = String(value || '').slice(0, 10);
+
+  if (!date) {
+    return 'Choose your joining date.';
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return 'Choose a valid joining date.';
+  }
+
+  if (min && date < min) {
+    return 'Joining date cannot be in the past.';
+  }
+
+  if (max && date > max) {
+    return 'Joining date must be within the next 5 days.';
+  }
+
+  return '';
+};

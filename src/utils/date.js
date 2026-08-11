@@ -93,13 +93,13 @@ export const compareIsoDates = (a, b) => {
 export const isIsoDateInRange = (isoDate, minIso, maxIso) =>
   compareIsoDates(isoDate, minIso) >= 0 && compareIsoDates(isoDate, maxIso) <= 0;
 
-/** Today (Asia/Kolkata) through today + (windowDays - 1), e.g. Aug 8 → Aug 12 when window=5. */
+/** Today (Asia/Kolkata) through today + windowDays, e.g. Aug 10 → Aug 15 when window=5. */
 export const getNearTermDateRange = (
   now = new Date(),
   windowDays = DATE_PICKER_WINDOW_DAYS,
 ) => {
   const min = getTodayIsoDate(now);
-  const max = addDaysToIsoDate(min, Math.max(windowDays, 1) - 1);
+  const max = addDaysToIsoDate(min, Math.max(windowDays, 0));
   return { min, max };
 };
 

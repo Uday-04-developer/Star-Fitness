@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Users,
@@ -7,15 +7,21 @@ import {
   XCircle,
   LogOut,
   UserPlus,
+  Download,
 } from 'lucide-react';
 import Button from '@/components/common/Button/Button';
 import LiquidButton from '@/components/common/LiquidButton/LiquidButton';
+import Modal from '@/components/common/Modal/Modal';
 import StatCard from '@/components/dashboard/StatCard/StatCard';
 import FilterBar from '@/components/dashboard/FilterBar/FilterBar';
 import SearchInput from '@/components/dashboard/SearchInput/SearchInput';
 import MemberCardGrid from '@/components/dashboard/MemberCardGrid/MemberCardGrid';
 import { useAuth } from '@/context/AuthContext';
 import { useMembers } from '@/hooks/useMembers';
+import {
+  BackupExportError,
+  downloadMembersBackup,
+} from '@/utils/backupExport';
 import { getMembershipStatus } from '@/utils/date';
 import styles from './Dashboard.module.css';
 
@@ -27,10 +33,23 @@ const Dashboard = () => {
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState('');
+  const [exportError, setExportError] = useState('');
+  const [exportSummary, setExportSummary] = useState(null);
+  const exportCancelRef = useRef({ cancelled: false });
 
   useEffect(() => {
     document.title = 'Dashboard — Star Fitness';
   }, []);
+
+  useEffect(
+    () => () => {
+      exportCancelRef.current.cancelled = true;
+    },
+    [],
+  );
 
   const stats = useMemo(() => {
     const counts = {
@@ -78,6 +97,65 @@ const Dashboard = () => {
     }
   };
 
+  const handleOpenExport = () => {
+    if (isExporting) {
+      return;
+    }
+    setExportError('');
+    setExportSummary(null);
+    setExportProgress('');
+    setIsExportOpen(true);
+  };
+
+  const handleCloseExport = () => {
+    if (isExporting) {
+      return;
+    }
+    setIsExportOpen(false);
+    setExportError('');
+    setExportSummary(null);
+    setExportProgress('');
+  };
+
+  const handleConfirmExport = async () => {
+    if (isExporting) {
+      return;
+    }
+
+    exportCancelRef.current = { cancelled: false };
+    setIsExporting(true);
+    setExportError('');
+    setExportSummary(null);
+    setExportProgress('Preparing backup...');
+
+    try {
+      const summary = await downloadMembersBackup({
+        signal: exportCancelRef.current,
+        onProgress: ({ message }) => {
+          setExportProgress(message);
+        },
+      });
+      setExportSummary(summary);
+      setExportProgress(
+        summary.selfieMissing > 0
+          ? `Backup completed with ${summary.selfieMissing} missing photo${summary.selfieMissing === 1 ? '' : 's'}.`
+          : 'Backup complete.',
+      );
+    } catch (err) {
+      console.error(err);
+      if (err instanceof BackupExportError && err.code === 'cancelled') {
+        setExportError('');
+        setExportProgress('');
+      } else if (err instanceof BackupExportError) {
+        setExportError(err.message);
+      } else {
+        setExportError('Backup could not be prepared. Please try again.');
+      }
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -88,6 +166,14 @@ const Dashboard = () => {
           <p className={styles.owner}>Admin · Lokesh Verma</p>
         </div>
         <div className={styles.headerActions}>
+          <Button
+            label="Export Backup"
+            variant="secondary"
+            icon={Download}
+            onClick={handleOpenExport}
+            disabled={isExporting}
+            isLoading={isExporting}
+          />
           <LiquidButton
             label="Register Member"
             icon={UserPlus}
@@ -157,6 +243,60 @@ const Dashboard = () => {
           onDeleteMember={removeMember}
         />
       </main>
+
+      <Modal
+        isOpen={isExportOpen}
+        onClose={handleCloseExport}
+        title={exportSummary ? 'Backup ready' : 'Export backup?'}
+      >
+        {exportSummary ? (
+          <>
+            <p className={styles.modalCopy}>{exportProgress}</p>
+            <ul className={styles.exportSummary}>
+              <li>File: {exportSummary.zipFileName}</li>
+              <li>Members: {exportSummary.memberCount}</li>
+              <li>Photos saved: {exportSummary.selfieDownloaded}</li>
+              <li>Photos missing: {exportSummary.selfieMissing}</li>
+            </ul>
+            <div className={styles.modalActions}>
+              <Button label="Done" variant="primary" onClick={handleCloseExport} />
+            </div>
+          </>
+        ) : (
+          <>
+            <p className={styles.modalCopy}>
+              This backup contains private member information and photos. Download
+              it only to a secure device and do not share it publicly.
+            </p>
+            {isExporting ? (
+              <p className={styles.exportProgress} aria-live="polite">
+                {exportProgress || 'Preparing backup...'}
+              </p>
+            ) : null}
+            {exportError ? (
+              <p className={styles.modalError} role="alert">
+                {exportError}
+              </p>
+            ) : null}
+            <div className={styles.modalActions}>
+              <Button
+                label="Cancel"
+                variant="secondary"
+                onClick={handleCloseExport}
+                disabled={isExporting}
+              />
+              <Button
+                label="Export Backup"
+                variant="primary"
+                icon={Download}
+                onClick={handleConfirmExport}
+                isLoading={isExporting}
+                disabled={isExporting}
+              />
+            </div>
+          </>
+        )}
+      </Modal>
     </div>
   );
 };

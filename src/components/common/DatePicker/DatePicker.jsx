@@ -27,7 +27,7 @@ const DatePicker = ({
   required = false,
   min: minProp,
   max: maxProp,
-  helperText = 'Choose today or up to 4 days ahead.',
+  helperText = 'Choose today or up to 5 days ahead.',
 }) => {
   const inputId = useId();
   const rootRef = useRef(null);

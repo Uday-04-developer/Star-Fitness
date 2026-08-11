@@ -14,7 +14,21 @@ Defines the complete backend data model: tables, columns, types, relationships, 
 - Supabase Auth, **email + password**, single admin account (Lokesh Verma) created manually in the Supabase dashboard for v1 — no public sign-up flow.
 - The `Login.jsx` page authenticates via `supabase.auth.signInWithPassword`.
 - `Dashboard.jsx` and `MemberCard.jsx` (owner-facing views) are protected routes — wrapped by a route guard reading `AuthContext`, redirecting unauthenticated users to `/login`.
-- `Register.jsx` (member self-registration, reached via QR code) is **public, unauthenticated** — it must be reachable by any member scanning the QR code without logging in. Its Supabase writes are permitted via RLS as an explicit, narrow `insert`-only policy (see below), not by exposing the admin account.
+- `Register.jsx` (member self-registration, reached via QR code) is **public, unauthenticated**. Registration writes go through the Edge Function `register-member` (service role server-side). The browser never receives a service-role/secret key.
+
+## Edge Functions (selfie lifecycle)
+
+| Function | Auth | Purpose |
+|----------|------|---------|
+| `register-member` | Public (`verify_jwt = false`) | Validate input, upload JPEG, insert member; on INSERT failure delete **only** the object this request uploaded |
+| `delete-member` | Owner JWT (`verify_jwt = true`) + `OWNER_USER_IDS` allowlist | Delete member by `memberId`; load `selfie_url` from DB; DB delete first, then exact Storage cleanup. Any authenticated non-owner → **403**. |
+| `export-members-backup` | Owner JWT (`verify_jwt = true`) + `OWNER_USER_IDS` allowlist | Read-only export: members + selfie path/availability metadata (no ZIP, no image bytes, no URLs). Non-owner → **403**. |
+
+Privileged Storage deletion uses `SUPABASE_SERVICE_ROLE_KEY` **only inside** Edge Functions. Never put service/secret keys in `VITE_*` env vars.
+
+**Owner authorization:** set Edge Function secret `OWNER_USER_IDS` to a comma-separated list of Supabase Auth user UUIDs for the gym owner account(s). Do not hardcode owner identities in the repo. If the secret is missing/empty, `delete-member` fails closed (403).
+
+**Remaining hardening:** no application-level rate limiting yet on `register-member` (payload size limits only). Add rate limiting before heavy public traffic.
 
 ## Database Schema
 
@@ -28,7 +42,7 @@ Defines the complete backend data model: tables, columns, types, relationships, 
 | `gender` | `text` | nullable | `'male' \| 'female' \| 'other'` enforced in app validation, not DB enum (keeps schema flexible) |
 | `date_of_birth` | `date` | nullable | |
 | `address` | `text` | nullable | |
-| `selfie_url` | `text` | nullable | Public URL from Supabase Storage |
+| `selfie_url` | `text` | nullable | Storage object path (e.g. `{uuid}.jpg`); legacy full URLs may exist |
 | `plan_type` | `text` | not null | `'monthly' \| 'quarterly' \| 'half_yearly' \| 'yearly'` — selected package |
 | `plan_duration_days` | `integer` | not null | Advertised package length from `PLAN_DURATIONS` (metadata only) |
 | `plan_start_date` | `date` | not null | Original join date — **immutable after registration** |
@@ -72,24 +86,25 @@ for each row execute function set_updated_at();
 RLS must be **enabled** on both tables. Policies:
 
 ### `members` table
-1. **Public insert (registration):**
-```sql
-create policy "public_can_register"
-on members for insert
-to anon
-with check (true);
-```
-   This allows the unauthenticated `/register` page to create a member row. It is intentionally narrow: `insert` only, no `select`/`update`/`delete` for `anon`.
+1. **No anon insert.** Registration is performed by Edge Function `register-member` with the service role (bypasses RLS). Do not recreate `public_can_register` unless intentionally reverting to direct client inserts.
 
-2. **Authenticated full access (dashboard):**
+2. **Authenticated least privilege (dashboard):**
 ```sql
-create policy "authenticated_full_access"
-on members for all
+create policy "authenticated_can_select_members"
+on members for select
+to authenticated
+using (true);
+
+create policy "authenticated_can_update_members"
+on members for update
 to authenticated
 using (true)
 with check (true);
 ```
-   The logged-in owner account can read/update/delete all members.
+   - SELECT ✅ — dashboard list / member detail  
+   - UPDATE ✅ — payment, plan, renew, expiry corrections  
+   - INSERT ❌ — registration uses `register-member` (service role)  
+   - DELETE ❌ — deletion uses Edge Function `delete-member` (service role + selfie cleanup). Browser Data API DELETE must fail under RLS.
 
 ### `reminder_log` table
 - `insert`: `authenticated` only (reminders are triggered from the dashboard, which is an authenticated surface).
@@ -101,16 +116,14 @@ with check (true);
 ## Supabase Storage
 
 ### Bucket: `member-selfies`
-- **Public bucket** (read access public, so `selfie_url` can be rendered directly as an `<img src>` without signed URLs — acceptable since selfies are non-sensitive, low-stakes gym ID photos, not confidential documents).
-- **Upload policy:** `anon` role permitted to `insert` only, path-scoped if desired (e.g., filename must be a UUID, not user-controlled, to prevent overwrite/enumeration abuse):
-```sql
-create policy "public_can_upload_selfie"
-on storage.objects for insert
-to anon
-with check (bucket_id = 'member-selfies');
-```
-- File naming convention: `{uuid}.jpg` generated client-side at upload time — never use the raw member name as a filename (privacy + collision safety).
-- Client-side resize: selfie captured via `SelfieCapture` component must be resized to max 800px on the longest edge and compressed to JPEG quality ~0.8 before upload (via canvas), keeping storage costs and load times low per `04-rules.md` performance rules.
+- **Private bucket** (`public = false`). Dashboard renders photos via time-limited **signed URLs** (`createSelfieSignedUrl` in `src/utils/selfie.js`). Anonymous clients cannot list or read objects.
+- `members.selfie_url` stores the **Storage object path** (e.g. `{uuid}.jpg`), not the image binary. Legacy rows may still hold a full public URL; the app normalizes both shapes with `getSelfieObjectPath`.
+- **Upload:** performed by Edge Function `register-member` (service role). Browser does **not** upload directly. Anon Storage INSERT is not part of the intended model.
+- **Read policy:** `authenticated` may `select` on this bucket (for signed URLs). No anon SELECT.
+- **Delete:** **none** for `anon` or `authenticated`. Privileged Storage delete happens only in Edge Functions (`register-member` cleanup on failed INSERT; `delete-member` after DB delete). The browser must never call `storage.remove()`.
+- File naming convention: `{uuid}.jpg` generated **server-side** in `register-member` — never trust a client-supplied filename.
+- Client-side resize: selfie captured via `SelfieCapture` is resized to max 800px / JPEG ~0.8 as an optimization. Server still enforces JPEG magic bytes and a max size (~2 MB).
+- **Lifecycle:** successful register → member row + Storage object. Failed INSERT → server deletes only the object created in that request. Owner delete → DB row first, then exact selfie path from the row (best-effort). Historical orphans are not auto-scanned.
 
 ## Membership Status Calculation
 
@@ -151,6 +164,7 @@ current_period_end = addCalendarMonths(base, paid_duration_months)
 - Date/status logic: `src/utils/date.js`
 - Plan constants: `src/lib/constants.js`
 - Data hooks: `src/hooks/useMembers.js`, `src/hooks/useMemberForm.js`
+- Edge Functions: `supabase/functions/register-member`, `supabase/functions/delete-member`
 
 ## Best Practices
 - Always select only the columns a view needs (`.select('id, full_name, phone_number, plan_start_date, plan_duration_days')` on the dashboard list) rather than `select('*')` everywhere — smaller payloads, faster table.
@@ -158,11 +172,13 @@ current_period_end = addCalendarMonths(base, paid_duration_months)
 - Validate `phone_number` format client-side before insert (10-digit Indian mobile pattern) to keep WhatsApp deep links functional.
 
 ## Acceptance Criteria
-- [ ] RLS is enabled on all tables with no overly-broad policies.
-- [ ] A member can complete `/register` while fully logged out.
+- [ ] RLS is enabled on all tables; anon cannot insert members or read/delete Storage objects.
+- [ ] A member can complete `/register` while fully logged out via `register-member`.
 - [ ] Dashboard cannot be reached without authentication.
 - [ ] Membership status is identical whether computed on the dashboard, the member card, or any filter — because it always flows through the single `getMembershipStatus()` util.
-- [ ] Selfie uploads are resized client-side before reaching Storage.
+- [ ] Selfie uploads are resized client-side; server validates JPEG + size; filenames are server-generated.
+- [ ] Failed registration cleans up only the selfie uploaded in that request (server-side).
+- [ ] Owner member deletion uses `delete-member` (DB then Storage); browser never calls Storage `.remove()`.
 
 ## Common Mistakes
 - Storing `status` as a static column that gets stale the moment time passes without a manual update.

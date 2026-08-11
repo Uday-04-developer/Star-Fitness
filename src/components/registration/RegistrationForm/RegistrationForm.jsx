@@ -9,15 +9,15 @@ import { useMemberForm } from '@/hooks/useMemberForm';
 import {
   formatDisplayDate,
   formatPaidDurationLabel,
-  getDobDateRange,
+  getNearTermDateRange,
 } from '@/utils/date';
 import { focusFirstRegistrationError } from '@/utils/focusError';
 import styles from './RegistrationForm.module.css';
 
 const RegistrationForm = ({ onSuccess }) => {
   const formRef = useRef(null);
-  const dobRange = getDobDateRange();
-  const dobHelper = `Optional. Selectable: ${formatDisplayDate(dobRange.min)} – ${formatDisplayDate(dobRange.max)}.`;
+  const joinRange = getNearTermDateRange();
+  const joinHelper = `Selectable: ${formatDisplayDate(joinRange.min)} – ${formatDisplayDate(joinRange.max)}.`;
   const {
     values,
     errors,
@@ -141,15 +141,19 @@ const RegistrationForm = ({ onSuccess }) => {
                 <option value="other">Other</option>
               </select>
             </div>
-            <DatePicker
-              label="Date of birth"
-              name="date_of_birth"
-              value={values.date_of_birth}
-              onChange={handleChange}
-              min={dobRange.min}
-              max={dobRange.max}
-              helperText={dobHelper}
-            />
+            <div data-error-target="plan_start_date">
+              <DatePicker
+                label="Date of joining"
+                name="plan_start_date"
+                value={values.plan_start_date}
+                onChange={handleChange}
+                min={joinRange.min}
+                max={joinRange.max}
+                helperText={joinHelper}
+                error={errors.plan_start_date}
+                required
+              />
+            </div>
           </div>
           <Input
             label="Address"

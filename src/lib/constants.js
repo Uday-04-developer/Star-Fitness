@@ -29,7 +29,7 @@ export const planDaysToPaidMonths = (days) => {
 
 export const EXPIRING_SOON_THRESHOLD_DAYS = 3;
 
-/** Inclusive window for registration date picker (today … today+N-1). */
+/** Future days allowed after today for join-date picker (today … today+N). */
 export const DATE_PICKER_WINDOW_DAYS = 5;
 
 export const MOTION = {
