@@ -134,7 +134,8 @@ const MemberCard = () => {
     setEditNotice('');
     setIsSavingPlan(true);
     try {
-      await updatePlan(member.id, planDraft);
+      const payload = await updatePlan(member.id, planDraft);
+      setMember((current) => (current ? { ...current, ...payload } : current));
       setEditNotice('Plan package updated. Expiry was not changed.');
     } catch (error) {
       setEditError(error?.message || "Couldn't update plan.");
@@ -151,7 +152,8 @@ const MemberCard = () => {
     setEditNotice('');
     setIsSavingPayment(true);
     try {
-      await updatePaymentStatus(member.id, nextStatus);
+      const payload = await updatePaymentStatus(member.id, nextStatus);
+      setMember((current) => (current ? { ...current, ...payload } : current));
       setEditNotice(
         nextStatus === 'paid'
           ? 'Marked as paid (dates unchanged).'
@@ -172,7 +174,8 @@ const MemberCard = () => {
     setEditNotice('');
     setIsRenewing(true);
     try {
-      await renewMembership(member.id, Number(renewMonths));
+      const payload = await renewMembership(member.id, Number(renewMonths));
+      setMember((current) => (current ? { ...current, ...payload } : current));
       setEditNotice('Membership renewed. Join date unchanged.');
     } catch (error) {
       setEditError(error?.message || "Couldn't renew membership.");
@@ -193,7 +196,8 @@ const MemberCard = () => {
     setEditNotice('');
     setIsSavingExpiry(true);
     try {
-      await updatePeriodEnd(member.id, expiryDraft);
+      const payload = await updatePeriodEnd(member.id, expiryDraft);
+      setMember((current) => (current ? { ...current, ...payload } : current));
       setEditNotice('Expiry updated. Join date unchanged.');
     } catch (error) {
       setEditError(error?.message || "Couldn't update expiry.");

@@ -1,10 +1,48 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { PAID_DURATION_OPTIONS, PLAN_DURATIONS } from '@/lib/constants';
 import { supabase } from '@/lib/supabaseClient';
-import { computeRenewalPeriodEnd } from '@/utils/date';
+import { computeRenewalPeriodEnd, getMembershipStatus } from '@/utils/date';
+
+/** Grid page size — Dashboard Load more appends this many rows per request. */
+export const MEMBERS_PAGE_SIZE = 50;
 
 const MEMBER_COLUMNS =
   'id, full_name, phone_number, email, gender, date_of_birth, address, selfie_url, plan_type, plan_duration_days, plan_start_date, paid_duration_months, current_period_end, plan_amount, payment_status, notes, created_at, updated_at';
+
+/** Lean columns for whole-gym StatCards — never used to mount cards or sign selfies. */
+const STATS_COLUMNS = 'id, current_period_end';
+
+const EMPTY_STATS = {
+  total: 0,
+  active: 0,
+  expiring_soon: 0,
+  expired: 0,
+};
+
+/** Escape `%` / `_` / `\` for PostgREST `ilike` patterns. */
+const escapeIlikePattern = (value) =>
+  String(value).replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+
+/**
+ * Build `.or(...)` filter for name/phone search.
+ * Strips commas so PostgREST or-lists stay valid; quotes patterns for spaces.
+ */
+const buildNamePhoneSearchFilter = (rawQuery) => {
+  const cleaned = String(rawQuery).trim().replace(/,/g, ' ').replace(/"/g, '');
+  const pattern = `%${escapeIlikePattern(cleaned)}%`;
+  return `full_name.ilike."${pattern}",phone_number.ilike."${pattern}"`;
+};
+
+const computeMemberStats = (rows) => {
+  const counts = { ...EMPTY_STATS, total: rows.length };
+
+  rows.forEach((row) => {
+    const status = getMembershipStatus(row);
+    counts[status] += 1;
+  });
+
+  return counts;
+};
 
 /** Payment flag only — never mutates join date or period end. */
 export const updateMemberPaymentStatus = async (id, paymentStatus) => {
@@ -95,25 +133,71 @@ export const renewMember = async (id, member, paidDurationMonths) => {
 
 export const useMembers = () => {
   const [members, setMembers] = useState([]);
+  const [stats, setStats] = useState(EMPTY_STATS);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isSearchMode, setIsSearchMode] = useState(false);
+  const [searchCapped, setSearchCapped] = useState(false);
   const [error, setError] = useState(null);
+  const [hasMore, setHasMore] = useState(false);
+  /** Next PostgREST `.range` start — independent of realtime prepends. */
+  const nextFromRef = useRef(0);
+  const loadMoreInFlightRef = useRef(false);
+  /** 'browse' | 'search' — realtime INSERT prepend only in browse. */
+  const listModeRef = useRef('browse');
+  const searchRequestIdRef = useRef(0);
+
+  const fetchMemberStats = useCallback(async () => {
+    const { data, error: statsError } = await supabase
+      .from('members')
+      .select(STATS_COLUMNS);
+
+    if (statsError) {
+      console.error(statsError);
+      throw new Error("Couldn't load member stats. Check your connection and try again.");
+    }
+
+    return computeMemberStats(data || []);
+  }, []);
+
+  const fetchMemberPage = useCallback(async (from) => {
+    const to = from + MEMBERS_PAGE_SIZE - 1;
+    const { data, error: queryError } = await supabase
+      .from('members')
+      .select(MEMBER_COLUMNS)
+      .order('created_at', { ascending: false })
+      .range(from, to);
+
+    if (queryError) {
+      console.error(queryError);
+      throw new Error("Couldn't load members. Check your connection and try again.");
+    }
+
+    return data || [];
+  }, []);
 
   const fetchMembers = useCallback(async () => {
+    searchRequestIdRef.current += 1;
+    listModeRef.current = 'browse';
+    setIsSearchMode(false);
+    setSearchCapped(false);
+    setIsSearching(false);
     setIsLoading(true);
     setError(null);
+    nextFromRef.current = 0;
+    loadMoreInFlightRef.current = false;
 
     try {
-      const { data, error: queryError } = await supabase
-        .from('members')
-        .select(MEMBER_COLUMNS)
-        .order('created_at', { ascending: false });
+      const [page, nextStats] = await Promise.all([
+        fetchMemberPage(0),
+        fetchMemberStats(),
+      ]);
 
-      if (queryError) {
-        console.error(queryError);
-        throw new Error("Couldn't load members. Check your connection and try again.");
-      }
-
-      setMembers(data || []);
+      nextFromRef.current = page.length;
+      setMembers(page);
+      setStats(nextStats);
+      setHasMore(page.length === MEMBERS_PAGE_SIZE);
     } catch (err) {
       console.error(err);
       setError(
@@ -121,10 +205,117 @@ export const useMembers = () => {
           "Couldn't load members. Check your connection and try again.",
       );
       setMembers([]);
+      setStats(EMPTY_STATS);
+      setHasMore(false);
+      nextFromRef.current = 0;
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [fetchMemberPage, fetchMemberStats]);
+
+  /**
+   * Server search across the whole members table (name or phone).
+   * Empty query restores paginated browse (page 1 refetch).
+   */
+  const searchMembers = useCallback(
+    async (rawQuery) => {
+      const query = String(rawQuery || '').trim();
+
+      if (!query) {
+        if (listModeRef.current === 'search') {
+          await fetchMembers();
+        }
+        return;
+      }
+
+      const requestId = searchRequestIdRef.current + 1;
+      searchRequestIdRef.current = requestId;
+      listModeRef.current = 'search';
+      setIsSearchMode(true);
+      setHasMore(false);
+      setIsSearching(true);
+      setError(null);
+
+      try {
+        const { data, error: queryError } = await supabase
+          .from('members')
+          .select(MEMBER_COLUMNS)
+          .or(buildNamePhoneSearchFilter(query))
+          .order('created_at', { ascending: false })
+          .limit(MEMBERS_PAGE_SIZE);
+
+        if (requestId !== searchRequestIdRef.current) {
+          return;
+        }
+
+        if (queryError) {
+          console.error(queryError);
+          throw new Error("Couldn't search members. Check your connection and try again.");
+        }
+
+        const page = data || [];
+        setMembers(page);
+        setSearchCapped(page.length === MEMBERS_PAGE_SIZE);
+      } catch (err) {
+        if (requestId !== searchRequestIdRef.current) {
+          return;
+        }
+        console.error(err);
+        setError(
+          err?.message ||
+            "Couldn't search members. Check your connection and try again.",
+        );
+        setMembers([]);
+        setSearchCapped(false);
+      } finally {
+        if (requestId === searchRequestIdRef.current) {
+          setIsSearching(false);
+        }
+      }
+    },
+    [fetchMembers],
+  );
+
+  const loadMore = useCallback(async () => {
+    if (
+      listModeRef.current === 'search' ||
+      loadMoreInFlightRef.current ||
+      isLoading ||
+      !hasMore
+    ) {
+      return;
+    }
+
+    loadMoreInFlightRef.current = true;
+    setIsLoadingMore(true);
+    setError(null);
+
+    try {
+      const from = nextFromRef.current;
+      const page = await fetchMemberPage(from);
+      nextFromRef.current = from + page.length;
+
+      setMembers((current) => {
+        if (!page.length) {
+          return current;
+        }
+        const seen = new Set(current.map((row) => row.id));
+        const appended = page.filter((row) => !seen.has(row.id));
+        return appended.length ? [...current, ...appended] : current;
+      });
+
+      setHasMore(page.length === MEMBERS_PAGE_SIZE);
+    } catch (err) {
+      console.error(err);
+      setError(
+        err?.message ||
+          "Couldn't load more members. Check your connection and try again.",
+      );
+    } finally {
+      loadMoreInFlightRef.current = false;
+      setIsLoadingMore(false);
+    }
+  }, [fetchMemberPage, hasMore, isLoading]);
 
   useEffect(() => {
     fetchMembers();
@@ -135,6 +326,21 @@ export const useMembers = () => {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'members' },
         (payload) => {
+          /*
+           * Loaded-window patch only:
+           * - INSERT (browse): prepend so new registrations appear immediately.
+           * - INSERT (search): do not prepend non-matching rows into results.
+           * - UPDATE: patch if id is already in the current list.
+           * - DELETE: remove if loaded.
+           * Stats refresh lean (whole gym) after membership-affecting events.
+           */
+          const shouldRefreshStats =
+            payload.eventType === 'INSERT' ||
+            payload.eventType === 'DELETE' ||
+            (payload.eventType === 'UPDATE' &&
+              payload.new?.current_period_end !==
+                payload.old?.current_period_end);
+
           setMembers((current) => {
             if (payload.eventType === 'INSERT') {
               const exists = current.some((row) => row.id === payload.new.id);
@@ -143,13 +349,18 @@ export const useMembers = () => {
                   row.id === payload.new.id ? payload.new : row,
                 );
               }
+              if (listModeRef.current === 'search') {
+                return current;
+              }
               return [payload.new, ...current];
             }
 
             if (payload.eventType === 'UPDATE') {
               const existing = current.find((row) => row.id === payload.new.id);
+              if (!existing) {
+                return current;
+              }
               if (
-                existing &&
                 existing.payment_status === payload.new.payment_status &&
                 existing.plan_start_date === payload.new.plan_start_date &&
                 existing.current_period_end === payload.new.current_period_end &&
@@ -175,6 +386,16 @@ export const useMembers = () => {
 
             return current;
           });
+
+          if (shouldRefreshStats) {
+            fetchMemberStats()
+              .then((nextStats) => {
+                setStats(nextStats);
+              })
+              .catch((err) => {
+                console.error(err);
+              });
+          }
         },
       )
       .subscribe();
@@ -182,7 +403,7 @@ export const useMembers = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchMembers]);
+  }, [fetchMembers, fetchMemberStats]);
 
   const updatePaymentStatus = useCallback(async (id, paymentStatus) => {
     let previous = null;
@@ -197,7 +418,7 @@ export const useMembers = () => {
     });
 
     try {
-      await updateMemberPaymentStatus(id, paymentStatus);
+      return await updateMemberPaymentStatus(id, paymentStatus);
     } catch (err) {
       if (previous) {
         setMembers((current) =>
@@ -274,12 +495,24 @@ export const useMembers = () => {
       );
     });
 
+    // Detail page may renew a member not yet in the loaded grid pages.
     if (!memberSnapshot) {
-      throw new Error("Couldn't find this member to renew.");
+      memberSnapshot = await fetchMemberById(id);
+      if (!memberSnapshot) {
+        throw new Error("Couldn't find this member to renew.");
+      }
     }
 
     try {
-      return await renewMember(id, memberSnapshot, paidDurationMonths);
+      const payload = await renewMember(
+        id,
+        memberSnapshot,
+        paidDurationMonths,
+      );
+      fetchMemberStats()
+        .then((nextStats) => setStats(nextStats))
+        .catch((err) => console.error(err));
+      return payload;
     } catch (err) {
       if (previous) {
         setMembers((current) =>
@@ -290,7 +523,7 @@ export const useMembers = () => {
       }
       throw err;
     }
-  }, []);
+  }, [fetchMemberStats]);
 
   const updatePeriodEnd = useCallback(async (id, currentPeriodEnd) => {
     let previous = null;
@@ -306,7 +539,11 @@ export const useMembers = () => {
     });
 
     try {
-      return await updateMemberPeriodEnd(id, nextEnd);
+      const payload = await updateMemberPeriodEnd(id, nextEnd);
+      fetchMemberStats()
+        .then((nextStats) => setStats(nextStats))
+        .catch((err) => console.error(err));
+      return payload;
     } catch (err) {
       if (previous) {
         setMembers((current) =>
@@ -317,7 +554,7 @@ export const useMembers = () => {
       }
       throw err;
     }
-  }, []);
+  }, [fetchMemberStats]);
 
   const removeMember = useCallback(async (id) => {
     let snapshot = null;
@@ -329,19 +566,30 @@ export const useMembers = () => {
 
     try {
       await deleteMember(id);
+      fetchMemberStats()
+        .then((nextStats) => setStats(nextStats))
+        .catch((err) => console.error(err));
     } catch (err) {
       if (snapshot) {
         setMembers((current) => [snapshot, ...current]);
       }
       throw err;
     }
-  }, []);
+  }, [fetchMemberStats]);
 
   return {
     members,
+    stats,
     isLoading,
+    isLoadingMore,
+    isSearching,
+    isSearchMode,
+    searchCapped,
+    hasMore,
     error,
     refetch: fetchMembers,
+    loadMore,
+    searchMembers,
     updatePaymentStatus,
     updatePlan,
     renewMembership,

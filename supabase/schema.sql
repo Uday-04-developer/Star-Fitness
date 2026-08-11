@@ -35,6 +35,10 @@ create table if not exists public.members (
 create index if not exists members_current_period_end_idx
   on public.members (current_period_end);
 
+-- Dashboard list pagination: ORDER BY created_at DESC
+create index if not exists members_created_at_idx
+  on public.members (created_at desc);
+
 create table if not exists public.reminder_log (
   id uuid primary key default gen_random_uuid(),
   member_id uuid not null references public.members (id) on delete cascade,

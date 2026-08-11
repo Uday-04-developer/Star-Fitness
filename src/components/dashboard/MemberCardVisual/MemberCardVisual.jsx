@@ -23,7 +23,9 @@ const getInitials = (name) =>
 
 const MemberCardVisual = ({ member }) => {
   const cardRef = useRef(null);
-  const selfieSrc = useSignedSelfieUrl(member.selfie_url);
+  const { signedUrl: selfieSrc } = useSignedSelfieUrl(member.selfie_url, {
+    lazy: false,
+  });
   const status = getMembershipStatus(member);
   const endDate = getPlanEndDate(member);
   const memberSince = formatDisplayDate(member.plan_start_date);
@@ -73,6 +75,7 @@ const MemberCardVisual = ({ member }) => {
             className={styles.photo}
             src={selfieSrc}
             alt={`Photo of ${member.full_name}`}
+            decoding="async"
           />
         ) : (
           <div className={styles.avatar} aria-hidden="true">

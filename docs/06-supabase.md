@@ -56,6 +56,10 @@ Privileged Storage deletion uses `SUPABASE_SERVICE_ROLE_KEY` **only inside** Edg
 
 **Explicitly NOT stored:** membership `status` (Active/Expiring/Expired) — computed from `current_period_end` vs today. Do not derive access from `plan_start_date + plan_duration_days`.
 
+**Indexes:** `phone_number` (unique), `current_period_end`, and `created_at DESC` (Dashboard pagination — see `fix-06-members-created-at-index.sql`).
+
+**Dashboard list pagination (Priority 4.1):** `useMembers` loads members with `.range()` in pages of **50** (`created_at` DESC). StatCards use a separate lean `select('id, current_period_end')` over the whole table — not the loaded page. **Server search (4.1b):** non-empty name/phone query uses `ilike` across the whole table (limit 50); clearing search restores paginated browse. Status filter remains client-side on the current result set. Export Backup still uses Edge Function `export-members-backup` for the full dataset and must never read paginated React state.
+
 ### Table: `reminder_log` (lightweight, optional but recommended)
 | Column | Type | Constraints | Notes |
 |---|---|---|---|
@@ -116,7 +120,7 @@ with check (true);
 ## Supabase Storage
 
 ### Bucket: `member-selfies`
-- **Private bucket** (`public = false`). Dashboard renders photos via time-limited **signed URLs** (`createSelfieSignedUrl` in `src/utils/selfie.js`). Anonymous clients cannot list or read objects.
+- **Private bucket** (`public = false`). Dashboard renders photos via time-limited **signed URLs** (`createSelfieSignedUrl` / `getCachedSelfieSignedUrl` in `src/utils/selfie.js`). Grid cards sign lazily near viewport (`useSignedSelfieUrl` + IntersectionObserver) and reuse an **in-memory** path→URL cache for the TTL (never stored in DB). Anonymous clients cannot list or read objects.
 - `members.selfie_url` stores the **Storage object path** (e.g. `{uuid}.jpg`), not the image binary. Legacy rows may still hold a full public URL; the app normalizes both shapes with `getSelfieObjectPath`.
 - **Upload:** performed by Edge Function `register-member` (service role). Browser does **not** upload directly. Anon Storage INSERT is not part of the intended model.
 - **Read policy:** `authenticated` may `select` on this bucket (for signed URLs). No anon SELECT.

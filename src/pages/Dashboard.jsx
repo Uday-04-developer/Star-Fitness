@@ -17,7 +17,7 @@ import FilterBar from '@/components/dashboard/FilterBar/FilterBar';
 import SearchInput from '@/components/dashboard/SearchInput/SearchInput';
 import MemberCardGrid from '@/components/dashboard/MemberCardGrid/MemberCardGrid';
 import { useAuth } from '@/context/AuthContext';
-import { useMembers } from '@/hooks/useMembers';
+import { useMembers, MEMBERS_PAGE_SIZE } from '@/hooks/useMembers';
 import {
   BackupExportError,
   downloadMembersBackup,
@@ -28,8 +28,23 @@ import styles from './Dashboard.module.css';
 const Dashboard = () => {
   const navigate = useNavigate();
   const { signOut } = useAuth();
-  const { members, isLoading, error, refetch, updatePaymentStatus, renewMembership, removeMember } =
-    useMembers();
+  const {
+    members,
+    stats,
+    isLoading,
+    isLoadingMore,
+    isSearching,
+    isSearchMode,
+    searchCapped,
+    hasMore,
+    error,
+    refetch,
+    loadMore,
+    searchMembers,
+    updatePaymentStatus,
+    renewMembership,
+    removeMember,
+  } = useMembers();
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -51,37 +66,43 @@ const Dashboard = () => {
     [],
   );
 
-  const stats = useMemo(() => {
-    const counts = {
-      total: members.length,
-      active: 0,
-      expiring_soon: 0,
-      expired: 0,
-    };
+  // SearchInput already debounces ~300ms before onChange.
+  useEffect(() => {
+    searchMembers(searchQuery);
+  }, [searchQuery, searchMembers]);
 
-    members.forEach((member) => {
-      const status = getMembershipStatus(member);
-      counts[status] += 1;
-    });
-
-    return counts;
-  }, [members]);
-
+  // Status filter stays client-side on the current browse/search result set.
   const filteredMembers = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-
     return members.filter((member) => {
       const status = getMembershipStatus(member);
-      const matchesFilter = activeFilter === 'all' || status === activeFilter;
-      const matchesSearch =
-        !query ||
-        member.full_name.toLowerCase().includes(query) ||
-        member.phone_number.includes(query);
-
-      return matchesFilter && matchesSearch;
+      return activeFilter === 'all' || status === activeFilter;
     });
-  }, [members, activeFilter, searchQuery]);
+  }, [members, activeFilter]);
 
+  const gridIsEmpty = filteredMembers.length === 0;
+  const serverHasRows = members.length > 0;
+
+  let gridEmptyTitle = 'No members yet';
+  let gridEmptyCopy =
+    'Register your first member to see their card here.';
+
+  if (gridIsEmpty) {
+    if (isSearchMode && !serverHasRows) {
+      gridEmptyTitle = 'No members match';
+      gridEmptyCopy = 'Try another name or phone number.';
+    } else if (serverHasRows && activeFilter !== 'all') {
+      gridEmptyTitle = 'No members match';
+      gridEmptyCopy =
+        'No members in this result set match the selected status filter.';
+    } else if (isSearchMode) {
+      gridEmptyTitle = 'No members match';
+      gridEmptyCopy = 'Try another name or phone number.';
+    }
+  }
+
+  const showBrowseLoadMore = !isLoading && !isSearchMode && !isSearching && hasMore;
+  const showSearchCapNote =
+    isSearchMode && !isSearching && searchCapped && filteredMembers.length > 0;
   const handleRegister = () => {
     window.open('/register', '_blank', 'noopener,noreferrer');
   };
@@ -237,11 +258,38 @@ const Dashboard = () => {
 
         <MemberCardGrid
           members={filteredMembers}
-          isLoading={isLoading}
+          isLoading={isLoading || isSearching}
+          emptyTitle={gridEmptyTitle}
+          emptyCopy={gridEmptyCopy}
           onPaymentStatusChange={updatePaymentStatus}
           onRenewMember={renewMembership}
           onDeleteMember={removeMember}
         />
+
+        {showSearchCapNote ? (
+          <p className={styles.searchNote} role="status">
+            Showing up to {MEMBERS_PAGE_SIZE} matches. Refine your search if you
+            need a more specific result.
+          </p>
+        ) : null}
+
+        {showBrowseLoadMore ? (
+          <div className={styles.loadMore}>
+            {activeFilter !== 'all' ? (
+              <p className={styles.loadMoreHint}>
+                Status filter applies to loaded members. Load more to include
+                older registrations.
+              </p>
+            ) : null}
+            <Button
+              label="Load more"
+              variant="secondary"
+              onClick={loadMore}
+              isLoading={isLoadingMore}
+              disabled={isLoadingMore}
+            />
+          </div>
+        ) : null}
       </main>
 
       <Modal

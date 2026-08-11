@@ -11,6 +11,8 @@ const SKELETON_COUNT = 6;
 const MemberCardGrid = ({
   members,
   isLoading,
+  emptyTitle = 'No members yet',
+  emptyCopy = 'Register your first member to see their card here.',
   onPaymentStatusChange,
   onRenewMember,
   onDeleteMember,
@@ -76,10 +78,8 @@ const MemberCardGrid = ({
   if (!members.length) {
     return (
       <div className={styles.empty}>
-        <h3 className={styles.emptyTitle}>No members yet</h3>
-        <p className={styles.emptyCopy}>
-          Register your first member to see their card here.
-        </p>
+        <h3 className={styles.emptyTitle}>{emptyTitle}</h3>
+        <p className={styles.emptyCopy}>{emptyCopy}</p>
       </div>
     );
   }

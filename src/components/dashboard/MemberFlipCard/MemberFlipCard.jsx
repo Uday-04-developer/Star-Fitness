@@ -68,7 +68,9 @@ const MemberFlipCard = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [isHovered, setIsHovered] = useState(false);
-  const selfieSrc = useSignedSelfieUrl(member.selfie_url);
+  const { signedUrl: selfieSrc, ref: selfieObserveRef } = useSignedSelfieUrl(
+    member.selfie_url,
+  );
   const status = getMembershipStatus(member);
   const endDate = getPlanEndDate(member);
   const daysLabel = formatDaysRemainingLabel(member);
@@ -301,7 +303,10 @@ const MemberFlipCard = ({
 
   return (
     <div
-      ref={sceneRef}
+      ref={(node) => {
+        sceneRef.current = node;
+        selfieObserveRef.current = node;
+      }}
       className={styles.scene}
       onPointerEnter={handleCardPointerEnter}
       onPointerLeave={handleCardPointerLeave}
@@ -324,7 +329,13 @@ const MemberFlipCard = ({
             <div className={styles.hoverGlow} aria-hidden="true" />
             <div className={styles.photoLayer}>
               {selfieSrc ? (
-                <img className={styles.photo} src={selfieSrc} alt="" />
+                <img
+                  className={styles.photo}
+                  src={selfieSrc}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                />
               ) : (
                 <div className={styles.avatar} aria-hidden="true">
                   {getInitials(member.full_name)}
@@ -438,6 +449,8 @@ const MemberFlipCard = ({
                       className={styles.thumb}
                       src={selfieSrc}
                       alt=""
+                      loading="lazy"
+                      decoding="async"
                     />
                   ) : (
                     <div className={styles.thumbFallback} aria-hidden="true">
